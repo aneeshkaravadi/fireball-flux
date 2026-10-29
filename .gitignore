@@ -1,0 +1,7 @@
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+# raw API downloads and the papers I read; only the dated CSV snapshot is committed
+data/raw/
+data/sources/
