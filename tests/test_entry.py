@@ -141,3 +141,17 @@ def test_small_shallow_weak_bodies_stay_finite():
         assert np.all(np.isfinite(r.peak_power)) and np.all(np.isfinite(r.profile["v"]))
         assert np.all(r.profile["v"] >= 0)    # the swarm can stop dead (no gravity in the model)
         assert np.all(r.burst_alt > 40e3)   # weak and fast: these peak high, not near the ground
+
+
+def test_chelyabinsk_with_popova_2013_inputs():
+    """Popova et al. (2013, Science 342, 1069): entry at 19.16 km/s and 18.3 deg, 590 kt, 3.3 g/cm^3,
+    light-curve fragmentation starting at 0.2 MPa, peak radiation at 29.7 km, and a satellite speed of
+    18.6 km/s at that moment. Given their strength, the pancake model puts the peak within 1 km of
+    theirs. It also slows the swarm to under 16 km/s by then, 3 km/s below what was measured. That
+    second part is a real disagreement, and the test pins it down rather than hiding it."""
+    rho_i, v0, th = 3300.0, 19.16e3, 18.3
+    L0 = entry.diameter_from_energy(590.0 * 4.185e12, v0, rho_i)
+    assert L0 == pytest.approx(19.8, abs=0.1)   # their diameter, 19.8 +/- 4.6 m
+    r = entry.simulate(L0, rho_i, v0, th, 0.2e6, dz=10.0)
+    assert r.burst_alt == pytest.approx(29.7e3, abs=1000.0)
+    assert r.burst_speed < 18.6e3 - 2500.0
