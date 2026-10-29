@@ -18,8 +18,9 @@ where the rate of energy loss, dE/dt, peaks, which is what I compare with the CN
 brightness, assuming the light output follows the energy deposition.
 
 What it leaves out: ablation, several fragmentation events, strength that changes with fragment size,
-gravity, the curvature of the Earth (a few km over a shallow path), and any luminous efficiency that
-changes during the flight.
+gravity, and any luminous efficiency that changes during the flight. `simulate` itself uses a flat
+Earth; `straight_path` turns a straight path over a round Earth into the inputs `simulate` needs, one
+path at a time.
 """
 from __future__ import annotations
 
@@ -147,6 +148,41 @@ def simulate(diameter, density, speed, angle_deg, strength, *, rho=atmosphere.de
         prof = {"z": z, **{k: np.array(prof[k]).reshape((steps + 1, *shape)) for k in ("v", "L", "power")}}
     rs = lambda a: a.reshape(shape)  # noqa: E731
     return EntryResult(rs(breakup_alt), rs(pancake_alt), rs(burst_alt), rs(burst_speed), rs(best), prof)
+
+
+def straight_path(angle_deg: float, angle_alt: float, z_top: float = 100e3, radius: float = 6371e3,
+                  rho=atmosphere.density):
+    """A straight path over a spherical Earth, in the flat-Earth coordinates `simulate` works in.
+
+    `angle_deg` is the angle below the local horizontal at altitude `angle_alt` (m). Along a straight
+    line (R + z) cos(angle) is constant, so the angle grows going up the path and shrinks going down.
+
+    Measured along the path, none of the model's equations involve the angle; it only decides how fast
+    the altitude, and so the air density, changes with distance. A flat-Earth run at a constant angle
+    with the density re-mapped to the real altitude at each distance is therefore the same calculation.
+    The flat angle is picked so the flat run reaches z = 0 where the real path reaches the ground (or
+    its lowest point, if it misses), so `simulate` covers the whole path with its usual altitude steps.
+
+    Returns (flat_angle_deg, rho_flat, to_true, to_flat): call simulate(..., flat_angle_deg, ...,
+    rho=rho_flat, z_top=z_top), map the altitudes it returns back with to_true(z), and map observed
+    altitudes into its coordinates with to_flat(z).
+    """
+    p = (radius + angle_alt) * np.cos(np.radians(angle_deg))     # closest approach to the Earth's center
+    q_top = np.sqrt((radius + z_top) ** 2 - p * p)               # path length from z_top to that point
+    s_end = q_top - np.sqrt(radius**2 - p * p) if p < radius else q_top
+    sin_f = z_top / s_end
+
+    def to_true(zf):
+        s_path = (z_top - np.asarray(zf, dtype=float)) / sin_f
+        return np.sqrt(p * p + (q_top - s_path) ** 2) - radius
+
+    def to_flat(z):
+        return z_top - (q_top - np.sqrt((radius + np.asarray(z, dtype=float)) ** 2 - p * p)) * sin_f
+
+    def rho_flat(zf):
+        return rho(np.maximum(to_true(zf), 0.0))
+
+    return float(np.degrees(np.arcsin(sin_f))), rho_flat, to_true, to_flat
 
 
 def ram_pressure_altitude(strength, speed):

@@ -143,15 +143,95 @@ def test_small_shallow_weak_bodies_stay_finite():
         assert np.all(r.burst_alt > 40e3)   # weak and fast: these peak high, not near the ground
 
 
+def time_domain_reference(L0, rho_i, v0, th_deg, th_alt, Y, rho, R=6371e3, z_top=100e3, fp=7.0, cd=2.0):
+    """Independent check of `straight_path`: the same physics integrated in time with scipy, flying a
+    straight line past a round Earth. Returns (breakup altitude, altitude of peak power, speed there)."""
+    p = (R + th_alt) * np.cos(np.radians(th_deg))
+    q0 = np.sqrt((R + z_top) ** 2 - p * p)
+    q_ground = np.sqrt(R**2 - p * p)
+    m = rho_i * np.pi * L0**3 / 6
+    kfac = 0.75 * cd / (rho_i * L0**3)
+    alt = lambda q: np.sqrt(p * p + q * q) - R   # noqa: E731
+
+    def rhs(t, y, phase):
+        q, v, L, Ld = y
+        r = rho(alt(q))
+        dv = -kfac * r * L * L * v * v
+        ddL = cd * r * v * v / (rho_i * L) if phase == 1 else 0.0
+        return [-v, dv, Ld if phase == 1 else 0.0, ddL]
+
+    def ground(t, y, phase):
+        return y[0] - q_ground
+    ground.terminal = True
+
+    def breaks(t, y, phase):
+        return rho(alt(y[0])) * y[1] ** 2 - Y
+    breaks.terminal, breaks.direction = True, 1
+
+    def capped(t, y, phase):
+        return y[2] - fp * L0
+    capped.terminal = True
+
+    y, t0, ts, ys, z_break = [q0, v0, L0, 0.0], 0.0, [], [], np.nan
+    for phase, events in ((0, (ground, breaks)), (1, (ground, capped)), (2, (ground,))):
+        sol = solve_ivp(rhs, [t0, t0 + 600.0], y, args=(phase,), events=events, rtol=1e-10, atol=1e-9,
+                        method="DOP853", dense_output=True)
+        tt = np.linspace(sol.t[0], sol.t[-1], 20001)
+        ts.append(tt)
+        ys.append(sol.sol(tt))
+        if sol.status != 1 or len(sol.t_events[0]):
+            break
+        if phase == 0:
+            z_break = alt(sol.y[0, -1])
+        t0, y = sol.t[-1], list(sol.y[:, -1])
+        if phase == 1:
+            y[2], y[3] = fp * L0, 0.0
+    q, v, L, _ = np.concatenate(ys, axis=1)
+    power = kfac * rho(alt(q)) * L * L * m * v**3
+    i = np.argmax(power)
+    return z_break, alt(q[i]), v[i]
+
+
+@pytest.mark.parametrize("L0,th,Y", [(3.0, 12.0, 1e6), (20.0, 16.0, 5e6), (1.0, 30.0, 3e5), (2.0, 10.0, 1e12)])
+def test_straight_path_matches_a_time_domain_solve(L0, th, Y):
+    """A straight path over a round Earth, via `straight_path` and the flat-Earth integrator, against
+    scipy integrating the same equations in time along the real line. The angle is given at 30 km."""
+    rho_i, v0 = 3000.0, 18e3
+    flat_th, rho_f, to_true, _ = entry.straight_path(th, 30e3, rho=EXPO)
+    r = entry.simulate(L0, rho_i, v0, flat_th, Y, rho=rho_f, dz=10.0)
+    z_break, z_burst, v_burst = time_domain_reference(L0, rho_i, v0, th, 30e3, Y, EXPO)
+    if np.isfinite(z_break):
+        assert to_true(r.breakup_alt) == pytest.approx(z_break, abs=10.0)
+    else:
+        assert np.isnan(r.breakup_alt)
+    assert to_true(r.burst_alt) == pytest.approx(z_burst, abs=40.0)
+    assert r.burst_speed == pytest.approx(v_burst, rel=2e-3)
+
+
+def test_straight_path_reduces_to_the_flat_model():
+    """Vertical, or on an enormous Earth, the straight path is the flat-Earth model."""
+    flat = entry.simulate(4.0, 3000.0, 18e3, 35.0, 1e6, dz=10.0)
+    th, rho_f, to_true, to_flat = entry.straight_path(35.0, 30e3, radius=1e12)
+    big = entry.simulate(4.0, 3000.0, 18e3, th, 1e6, rho=rho_f, dz=10.0)
+    assert th == pytest.approx(35.0, abs=1e-3)
+    assert to_true(big.burst_alt) == pytest.approx(flat.burst_alt, abs=20.0)
+    th, _, to_true, to_flat = entry.straight_path(90.0, 30e3)
+    assert th == pytest.approx(90.0) and to_true(25e3) == pytest.approx(25e3) and to_flat(25e3) == pytest.approx(25e3)
+
+
 def test_chelyabinsk_with_popova_2013_inputs():
-    """Popova et al. (2013, Science 342, 1069): entry at 19.16 km/s and 18.3 deg, 590 kt, 3.3 g/cm^3,
-    light-curve fragmentation starting at 0.2 MPa, peak radiation at 29.7 km, and a satellite speed of
-    18.6 km/s at that moment. Given their strength, the pancake model puts the peak within 1 km of
-    theirs. It also slows the swarm to under 16 km/s by then, 3 km/s below what was measured. That
-    second part is a real disagreement, and the test pins it down rather than hiding it."""
-    rho_i, v0, th = 3300.0, 19.16e3, 18.3
+    """Popova et al. (2013, Science 342, 1069), Table 1 and text: first seen at 97.1 km, entering at
+    19.16 km/s and 18.3 deg, 590 kt, 3.3 g/cm^3, light-curve fragmentation starting at 0.2 MPa, peak
+    brightness at 29.7 +/- 1.4 km (2 sigma), and a satellite speed of 18.6 km/s at that moment.
+
+    Their 18.3 deg is the angle at 97.1 km; along the straight path it is 16.4 deg by 29.7 km, so the
+    run uses the straight path over a round Earth. Given their strength, the pancake model puts the peak
+    within their 2 sigma. It also slows the swarm to under 16 km/s by then, more than 2.5 km/s below
+    what was measured. That second part is a real disagreement, and the test pins it down."""
+    rho_i, v0 = 3300.0, 19.16e3
     L0 = entry.diameter_from_energy(590.0 * 4.185e12, v0, rho_i)
     assert L0 == pytest.approx(19.8, abs=0.1)   # their diameter, 19.8 +/- 4.6 m
-    r = entry.simulate(L0, rho_i, v0, th, 0.2e6, dz=10.0)
-    assert r.burst_alt == pytest.approx(29.7e3, abs=1000.0)
+    th, rho_f, to_true, _ = entry.straight_path(18.3, 97.1e3)
+    r = entry.simulate(L0, rho_i, v0, th, 0.2e6, dz=10.0, rho=rho_f)
+    assert to_true(r.burst_alt) == pytest.approx(29.7e3, abs=1400.0)
     assert r.burst_speed < 18.6e3 - 2500.0
