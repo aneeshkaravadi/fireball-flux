@@ -24,10 +24,50 @@ def test_bootstrap_interval_covers_the_true_exponent_at_the_right_rate():
     hits = 0
     for k in range(200):
         x = synthetic_pareto(0.9, 0.2, 300, rng)
-        b, _ = flux.bootstrap(x, years=20.0, emin=0.2, n_boot=400, seed=k)
+        b, _, _ = flux.bootstrap(x, years=20.0, emin=0.2, n_boot=400, seed=k)
         lo, hi = np.percentile(b, [16, 84])
         hits += lo <= 0.9 <= hi
     assert 0.58 <= hits / 200 <= 0.78
+
+
+def test_rounding_edge():
+    assert flux.rounding_edge(0.24, 2) == pytest.approx(0.235)
+    assert flux.rounding_edge(1.0, 2) == pytest.approx(0.95)
+    assert flux.rounding_edge(0.1, 2) == pytest.approx(0.095)
+    assert flux.rounding_edge(12.0, 2) == pytest.approx(11.5)
+    assert flux.rounding_edge(0.24, None) == 0.24
+
+
+def test_fit_recovers_the_exponent_from_a_rounded_catalog():
+    """SYNTHETIC: Pareto samples printed to 2 significant figures, like the CNEOS table. With the
+    rounding edge as the lower bound the fit gets b back; treating the printed threshold as exact
+    biases it upward, which is the mistake I first made."""
+    from fireballs.energy import round_sig
+
+    rng = np.random.default_rng(11)
+    exact, edge = [], []
+    for _ in range(40):
+        x = round_sig(synthetic_pareto(0.9, 0.05, 6000, rng), 2)
+        exact.append(flux.pareto_mle(x, 0.24))
+        edge.append(flux.pareto_mle(x, 0.24, sig_figs=2))
+    se = 0.9 / np.sqrt(np.sum(x >= 0.24)) / np.sqrt(40)           # standard error of the mean over 40 catalogs
+    assert np.mean(edge) == pytest.approx(0.9, abs=3 * se)
+    assert np.mean(exact) - 0.9 > 5 * se
+
+
+def test_bootstrap_with_the_threshold_chosen_again_is_wider():
+    """SYNTHETIC: choosing the threshold again in every resample adds its uncertainty to the spread."""
+    rng = np.random.default_rng(12)
+    x = synthetic_pareto(0.9, 0.05, 8000, rng)
+    x = x[rng.uniform(size=x.size) < np.clip((x / 0.25) ** 3, 0, 1)]        # incomplete below ~0.25
+    cands = np.geomspace(0.1, 2.0, 30)
+    emin, _, _ = flux.choose_threshold(x, cands)
+    b_fix, _, em_fix = flux.bootstrap(x, 20.0, emin, n_boot=300, seed=1)
+    b_var, n1_var, em_var = flux.bootstrap(x, 20.0, emin, n_boot=300, seed=1, candidates=cands)
+    assert np.all(em_fix == emin) and np.ptp(em_var) > 0
+    assert np.std(b_var) > np.std(b_fix)
+    lo, hi = np.percentile(b_var, [2.5, 97.5])
+    assert lo < 0.9 < hi
 
 
 def test_rate_normalization():
