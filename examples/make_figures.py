@@ -164,6 +164,8 @@ results["flux"] = {
     "brown2002": {"n1": flux.BROWN2002_N1, "b": flux.BROWN2002_B,
                   "energy_once_per_year_kt": (flux.BROWN2002_N1) ** (1 / flux.BROWN2002_B),
                   "years_between_440kt": 1 / flux.brown2002_rate(440.0), "years_between_10Mt": 1 / flux.brown2002_rate(1e4)},
+    "largest_two_kt": sorted(e_all)[-2:][::-1],
+    "years_between_10Mt_mine_over_brown": return_period(fit.b, fit.n1, 1e4) / (1 / flux.brown2002_rate(1e4)),
     "b_minus_brown_in_sd": (fit.b - flux.BROWN2002_B) / np.std(b_boot),
     "n1_minus_brown_in_sd": (fit.n1 - flux.BROWN2002_N1) / np.std(n1_boot),
     "brown_b_percentile_in_bootstrap": float(np.mean(b_boot <= flux.BROWN2002_B) * 100),
@@ -274,6 +276,20 @@ for name, kw in {"density_1500": dict(density=1500.0), "density_3300": dict(dens
 # the simplest choice: take the CNEOS speed (at peak brightness) as the speed at the top of the atmosphere
 L0_raw = entry.diameter_from_energy(ab.impact_kt.to_numpy() * energy.KT_J, v_obs, BULK_DENSITY)
 s_raw, f_raw, _ = entry.invert_strength(z_obs, L0_raw, BULK_DENSITY, v_obs, ab.angle.to_numpy())
+# SYNTHETIC sensitivity check of that choice: fly rocks with known strength and entry speed, keep what the
+# table would report (burst altitude and the speed there), and invert both ways
+rng = np.random.default_rng(1)
+syn_L0, syn_v0 = rng.uniform(0.8, 6.0, 40), rng.uniform(13e3, 28e3, 40)
+syn_th, syn_y = rng.uniform(20.0, 75.0, 40), 10 ** rng.uniform(5.0, 7.0, 40)
+syn = entry.simulate(syn_L0, BULK_DENSITY, syn_v0, syn_th, syn_y)
+syn_e = 0.5 * entry.mass(syn_L0, BULK_DENSITY) * syn_v0**2
+syn_inv = airburst.implied_strength(syn.burst_alt, syn.burst_speed, syn_th, syn_e, BULK_DENSITY)
+syn_raw, syn_fraw, _ = entry.invert_strength(syn.burst_alt, entry.diameter_from_energy(syn_e, syn.burst_speed, BULK_DENSITY),
+                                             BULK_DENSITY, syn.burst_speed, syn_th)
+syn_ok = (syn_inv.flag == 0) & syn_inv.speed_matched & (syn_fraw == 0)
+synthetic_speed_check = {"label": "SYNTHETIC rocks, not data", "n": int(syn_ok.sum()),
+                         "matched_over_true_median": float(np.median(syn_inv.strength[syn_ok] / syn_y[syn_ok])),
+                         "speed_as_entry_over_true_median": float(np.median(syn_raw[syn_ok] / syn_y[syn_ok]))}
 variants["speed_as_entry_speed"] = {"n_resolved": int(np.sum(f_raw == 0)), "median_MPa": float(np.median(s_raw[f_raw == 0]) / 1e6),
                                     "p16_p84_MPa": [v / 1e6 for v in pct(s_raw[f_raw == 0], (16, 84))]}
 log("strength inversion (speed as entry speed)")
@@ -304,6 +320,7 @@ results["airburst"] = {
         "spearman_strength_speed": {"rho": rho_sv.statistic, "p": rho_sv.pvalue},
         "spearman_strength_energy": {"rho": rho_se.statistic, "p": rho_se.pvalue},
         "variants": variants,
+        "synthetic_speed_check": synthetic_speed_check,
     },
     "spearman_altitude_energy": {"rho": rho_ze.statistic, "p": rho_ze.pvalue},
 }
@@ -380,6 +397,12 @@ steps = {
     "cneos_altitude_angle_energy": che_strength(che_row.alt_km * 1e3, POP["v0"], che_angle, che_row.impact_kt),
     "cneos_all_speed_matched": float(che_inv.strength[0]) / 1e6,
 }
+# how much do the CNEOS angle and azimuth move if each printed number is anywhere within its rounding?
+rr = np.random.default_rng(5)
+rr_v = np.array([che_row.vx, che_row.vy, che_row.vz]) + rr.uniform(-0.05, 0.05, (20000, 3))
+rr_la, rr_lo = che_row.lat + rr.uniform(-0.05, 0.05, 20000), che_row.lon + rr.uniform(-0.05, 0.05, 20000)
+rr_h = geometry.entry_angle_deg(rr_la, rr_lo, *rr_v.T)
+rr_az = geometry.radiant_azimuth_deg(rr_la, rr_lo, *rr_v.T)
 pop_matched = airburst.implied_strength([POP["z_peak"]], [POP["v_peak_satellite"]], POP["angle"],
                                         POP["energy_kt"] * energy.KT_J, CHELYABINSK_DENSITY, dz=10.0)
 runs = {
@@ -408,6 +431,13 @@ results["chelyabinsk"] = {
     "popova_altitude_speed_matched": {"strength_MPa": float(pop_matched.strength[0]) / 1e6,
                                       "entry_speed_needed_km_s": float(pop_matched.entry_speed[0]) / 1e3},
     "altitude_difference_km": POP["z_peak"] / 1e3 - che_row.alt_km,
+    "angle_gap_deg": POP["angle"] - che_angle, "azimuth_gap_deg": (283.2 - 180.0) - che_az,
+    "angle_and_azimuth_sd_from_rounding_deg": [float(np.std(rr_h)), float(np.std(rr_az))],
+    "strength_ratio_cneos_over_popova": float(che_inv.strength[0]) / 1e6 / steps["popova_inputs"],
+    "strength_ratio_altitude_alone": steps["cneos_altitude"] / steps["popova_inputs"],
+    "ram_pressure_ratio_23_3_vs_29_7_km": float(airburst.ram_pressure(che_row.alt_km * 1e3, 18.6e3)
+                                                / airburst.ram_pressure(POP["z_peak"], 18.6e3)),
+    "scale_height_km_at_23_and_30_km": [float(h) / 1e3 for h in atmosphere.scale_height(np.array([23.3e3, 29.7e3]))],
 }
 
 fig, ax = plt.subplots(figsize=(6.5, 5))
@@ -453,6 +483,9 @@ results["population"] = {
     "model_entry_speed_mean_km_s": float(np.mean(inv.entry_speed[inv.speed_matched]) / 1e3),
     "brown2002_assumed_mean_speed_km_s": 20.3,
     "vel_field_disagrees": len(mism), "vel_field_disagrees_dates": [str(d) for d in mism.date],
+    "bering_sea_2018": {k: float(vel.loc[vel.date == pd.Timestamp("2018-12-18 23:48:18"), c].iloc[0])
+                        for k, c in (("speed_from_components", "speed"), ("vel_field", "vel_api"))},
+    "velocity_events_before_2008": int((vel.year < 2008).sum()), "velocity_events_from_2008": int((vel.year >= 2008).sum()),
     "entry_angle": {"n": len(ang), "median": float(np.median(ang)), "ks_vs_isotropic_p": float(ks_ang.pvalue),
                     "frac_below_30": float(np.mean(ang < 30)), "isotropic_frac_below_30": 0.25},
     "velocity_reported_events_more_energetic": {"median_with_kt": float(with_v[with_v.speed.notna()].impact_kt.median()),
