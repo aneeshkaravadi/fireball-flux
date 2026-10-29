@@ -1,0 +1,17 @@
+# U.S. Standard Atmosphere 1976 (NASA-TM-X-74335, NTRS 19770009539), Part 4, Table I "Geometric Altitude, Metric Units".
+# Density column read from the scanned report: printed pages 53 (0 m), 57 (10 km), 59 (11 and 15 km), 61 (20 km),
+# 63 (30 km), 65 (40 and 50 km) and 67 (60 to 80 km).
+z_m,rho_kg_m3
+0,1.2250
+10000,4.1351e-1
+11000,3.6480e-1
+15000,1.9476e-1
+20000,8.8910e-2
+30000,1.8410e-2
+40000,3.9957e-3
+50000,1.0269e-3
+60000,3.0968e-4
+65000,1.6321e-4
+70000,8.2829e-5
+75000,3.9921e-5
+80000,1.8458e-5
