@@ -130,3 +130,14 @@ def test_inversion_recovers_a_known_strength():
     # where the burst altitude doesn't pin the strength down, the limits are still right
     assert np.all(s_true[flag == -1] <= s_fit[flag == -1] * 1.1)
     assert np.all(s_true[flag == 1] >= s_fit[flag == 1] / 1.1)
+
+
+def test_small_shallow_weak_bodies_stay_finite():
+    """Regression: a 0.5-0.75 m body at 5-7 degrees used to overflow once the crushed swarm got low,
+    and the overflowed power showed up as a fake burst a few km above the ground."""
+    strengths = entry.strength_grid(1e3, 1e5, 10)
+    for L0, th, v in ((0.75, 6.7, 40.4e3), (0.5, 5.1, 71.1e3)):
+        r = entry.simulate(L0, 3000.0, v, th, strengths, keep_profile=True)
+        assert np.all(np.isfinite(r.peak_power)) and np.all(np.isfinite(r.profile["v"]))
+        assert np.all(r.profile["v"] >= 0)    # the swarm can stop dead (no gravity in the model)
+        assert np.all(r.burst_alt > 40e3)   # weak and fast: these peak high, not near the ground

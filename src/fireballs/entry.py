@@ -94,20 +94,26 @@ def simulate(diameter, density, speed, angle_deg, strength, *, rho=atmosphere.de
     broken |= now
     breakup_alt[now] = z_top
 
-    def deriv(r, v_, L_, P_, spreading):
+    # The speed is integrated as u = ln v. Stepping v itself is unstable once a crushed swarm is low in
+    # the air: d(ln v)/ds = -k / sin(theta) can be several per metre, and a 25 m RK4 step on v then
+    # overflows. In ln v the right-hand side doesn't depend on u, so it can't run away.
+    u = np.log(v)
+
+    def deriv(r, L_, P_, spreading):
         k = kfac * r * L_**2
-        dv = -k * v_ / sin_t if decelerate else np.zeros_like(v_)
+        du = -k / sin_t if decelerate else np.zeros_like(L_)
         dP = np.where(spreading, spread * r / L_ + (P_ * k / sin_t if decelerate else 0.0), 0.0)
-        return dv, P_, dP
+        return du, P_, dP
 
     for i in range(steps):
         spreading = broken & ~capped
         r0, rh, r1 = rho_full[i], rho_half[i], rho_full[i + 1]
-        a1 = deriv(r0, v, L, P, spreading)
-        a2 = deriv(rh, v + 0.5 * dz * a1[0], L + 0.5 * dz * a1[1], P + 0.5 * dz * a1[2], spreading)
-        a3 = deriv(rh, v + 0.5 * dz * a2[0], L + 0.5 * dz * a2[1], P + 0.5 * dz * a2[2], spreading)
-        a4 = deriv(r1, v + dz * a3[0], L + dz * a3[1], P + dz * a3[2], spreading)
-        v = v + dz / 6 * (a1[0] + 2 * a2[0] + 2 * a3[0] + a4[0])
+        a1 = deriv(r0, L, P, spreading)
+        a2 = deriv(rh, L + 0.5 * dz * a1[1], P + 0.5 * dz * a1[2], spreading)
+        a3 = deriv(rh, L + 0.5 * dz * a2[1], P + 0.5 * dz * a2[2], spreading)
+        a4 = deriv(r1, L + dz * a3[1], P + dz * a3[2], spreading)
+        u = u + dz / 6 * (a1[0] + 2 * a2[0] + 2 * a3[0] + a4[0])
+        v = np.exp(u)
         L = L + dz / 6 * (a1[1] + 2 * a2[1] + 2 * a3[1] + a4[1])
         P = P + dz / 6 * (a1[2] + 2 * a2[2] + 2 * a3[2] + a4[2])
 
