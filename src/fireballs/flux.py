@@ -8,7 +8,8 @@ data in the Kolmogorov-Smirnov sense.
 
 Published comparison: Brown et al. (2002, Nature 420, 294) fit N = 3.7 E**-0.90 to satellite
 fireballs, valid for about 0.1 to 10 kt. The paper itself is paywalled; that form and range are as
-quoted in Borovicka, Spurny & Brown (2015, Asteroids IV, arXiv:1502.03307), which Brown co-wrote.
+quoted in Borovicka, Spurny & Brown (2015, "Small near-Earth asteroids as a source of meteorites",
+arXiv:1502.03307), which Brown co-wrote.
 """
 from __future__ import annotations
 
