@@ -6,9 +6,9 @@ How often do space rocks big enough to make a fireball hit Earth, and can simple
 
 ## Short answers
 
-- **About four a year at 1 kiloton of TNT or more.** Over 2000-2025 the table has 104 events at or above 1 kt, which is 4.0 ± 0.4 per year. Above 0.24 kt the rate follows a power law, N(≥E) = 3.84 E^-0.96 per year, and that agrees with the law Brown et al. published in 2002 (N = 3.7 E^-0.9) to within about one standard deviation, including 23 years of events they couldn't have seen.
-- **Simple physics doesn't predict the burst altitude of any one rock.** If every rock had the same strength, the air density where it bursts would scale as 1/v². In the data, speed explains only 8% of the spread in burst altitude. A pancake-breakup model with one strength for everything does worse than just guessing the average altitude. The rocks differ a lot in strength: the strength the model needs to match each reported altitude spans a factor of 10 (1.1 to 11 MPa for the middle 68%).
-- **For Chelyabinsk, the altitude in NASA's table is 6.4 km lower than the one from video.** The table puts peak brightness at 23.3 km; the video trajectory in Popova et al. (2013) puts it at 29.7 ± 1.4 km. That one difference changes the strength my model infers by a factor of 36.
+- **About four a year at 1 kiloton of TNT or more.** Over 2000-2020 the table has 84 events at or above 1 kt, which is 4.0 ± 0.4 per year. Above 0.21 kt the rate follows a power law, N(≥E) = 4.0 E^-0.96 per year. That is within one standard deviation of the law Brown et al. published in 2002 (N = 3.7 E^-0.9), but only if the sensors now see close to the whole Earth. Brown et al.'s law is probably corrected for the 60-80% of the Earth the sensors covered in their years. If today's coverage were 80%, my rate at 1 kt would be 5.0 a year, 2.7 standard deviations above theirs.
+- **Simple physics doesn't predict the burst altitude of any one rock.** If every rock had the same strength, the air density where it bursts would scale as 1/v². In the data, speed explains only 8% of the spread in burst altitude. A pancake-breakup model with one strength for everything does worse than just guessing the average altitude. The strength the model needs to match each reported altitude spans a factor of 10 (1.1 to 11 MPa for the middle 68%), and I can't separate how much of that is the rocks and how much is error in the reported altitudes and speeds.
+- **For Chelyabinsk, the altitude in NASA's table is 6.4 km lower than the one from video.** The table puts peak brightness at 23.3 km; the video trajectory in Popova et al. (2013) puts it at 29.7 ± 1.4 km. That one difference changes the strength my model infers by a factor of 13. The direction of the two trajectories agrees to within 0.4°.
 
 ## The data
 
@@ -18,13 +18,26 @@ The [CNEOS fireball table](https://cneos.jpl.nasa.gov/fireballs/intro.html) list
 
 ### Which years to use
 
-Before fitting anything I checked how the yearly count changes over time. There are only a handful of events before 1994, and 1994-1999 averages 21.8 a year against 35.2 a year for 2000-2025. From 2000 on, the yearly totals are consistent with one constant Poisson rate (index of dispersion 0.98, p = 0.49), so I used the 26 full years 2000-2025. 2026 is left out because the year isn't over.
+Before fitting anything I checked how the yearly count changes over time. There are only a handful of events before 1994, and 1994-1999 averages 21.8 a year against 35.2 a year for 2000-2025. From 2000 on, the yearly totals are consistent with one constant Poisson rate (index of dispersion 0.98, p = 0.49).
+
+But the energies shift in the last five years. The total stays the same (35.2 a year in 2000-2020, 35.0 in 2021-2025), and so does the rate at 1 kt or more (4.0 and 4.0). In between, events move down in energy:
+
+| impact energy | 2000-2020, per year | 2021-2025, per year |
+|---|---|---|
+| below 0.1 kt | 5.8 | 8.0 |
+| 0.1-0.24 kt | 13.2 | 16.2 |
+| 0.24-1 kt | 12.1 | 6.8 |
+| 1 kt and up | 4.0 | 4.0 |
+
+The median energy drops from 0.21 to 0.16 kt, and a two-sample KS test on all the energies gives p = 4 × 10⁻⁴. I only noticed this after looking at the table, so that p-value overstates how surprising it is. With the total count unchanged, it looks more like a change in the sensors, the energy calibration or the reporting than in the rocks, but I can't check that. Either way, a fixed energy threshold doesn't mean the same thing before and after 2021, so I fit the 21 full years 2000-2020 and show 2000-2025 next to it. 2026 is left out because the year isn't over.
 
 ![Fireballs per year](docs/figures/yearly_counts.png)
 
 ### Which energies to use
 
-The sensors miss more of the faint events, so below some energy the table is incomplete and the power law bends over. I picked the threshold the way Clauset, Shalizi & Newman (2009) recommend: fit the power law above each candidate threshold by maximum likelihood, and keep the threshold where the fitted law is closest to the data (smallest Kolmogorov-Smirnov distance). That gives 0.24 kt, with 393 events above it. The exponent is stable above about 0.2 kt and drops quickly below it, which is what incompleteness looks like.
+The sensors miss more of the faint events, so below some energy the table is incomplete and the power law bends over. I picked the threshold the way Clauset, Shalizi & Newman (2009) recommend: fit the power law above each candidate threshold by maximum likelihood, and keep the threshold where the fitted law is closest to the data (smallest Kolmogorov-Smirnov distance). That gives 0.21 kt, with 385 events at or above it.
+
+CNEOS prints impact energies to two significant figures, so a printed 0.21 kt stands for anything from 0.205 kt up. I use 0.205 kt as the lower bound in the fit. Treating the printed 0.21 as exact gives b = 0.980 instead of 0.957, because the events sitting right at the threshold look closer to it than they are.
 
 ![Threshold choice](docs/figures/threshold.png)
 
@@ -32,34 +45,43 @@ The sensors miss more of the faint events, so below some energy the table is inc
 
 N(≥E) = N₁ E^-b, with E in kilotons of TNT and N per year over the whole Earth:
 
-| | b | N₁ (per year at ≥ 1 kt) |
-|---|---|---|
-| My fit, 2000-2025, above 0.24 kt | 0.961 (68%: 0.913-1.01; 95%: 0.871-1.06) | 3.84 (68%: 3.52-4.17) |
-| Only events after Brown et al. (2003-2025) | 0.964 (0.914-1.02) | 3.80 (3.43-4.15) |
-| Brown et al. (2002) | 0.9 | 3.7 |
+| | threshold | b | N₁ (per year at ≥ 1 kt) |
+|---|---|---|---|
+| My fit, 2000-2020 | 0.21 kt | 0.957 (68%: 0.883-1.02; 95%: 0.784-1.10) | 4.02 (68%: 3.58-4.35) |
+| Only events after Brown et al. (2003-2020) | 0.21 kt | 0.961 (0.874-1.03) | 4.01 (3.56-4.42) |
+| 2000-2025, including the shifted years | 0.23 kt | 0.948 (0.886-0.999) | 3.86 (3.51-4.19) |
+| Brown et al. (2002) | | 0.9 | 3.7 |
 
-The intervals come from 4,000 bootstrap resamples, with the total count also drawn from a Poisson distribution so the rate uncertainty is included. My exponent is 1.2 bootstrap standard deviations steeper than Brown's (0.90 sits at the 10th percentile of my bootstrap), and N₁ is 0.4 standard deviations higher. So they agree. Brown et al. used 8.5 years of satellite records up to 2002, so the 2003-2025 row uses only events they couldn't have seen. That row is a real out-of-sample check. A goodness-of-fit test (Clauset et al.'s bootstrap, with the synthetic catalogs rounded to two significant figures like the CNEOS table) gives p = 0.24, so the power law isn't ruled out.
+The intervals come from 2,000 bootstrap resamples of the whole catalog, with the total count drawn from a Poisson distribution and the threshold chosen again in every resample, as Clauset et al. recommend (the threshold's own 68% range is 0.19 to 0.42 kt). Holding the threshold fixed at 0.21 kt would give a narrower 0.912-1.01 for b, so the threshold choice is a big part of the uncertainty. Including 2021-2025 flattens b a little, as you'd expect from losing events just above the threshold. A goodness-of-fit test (Clauset et al.'s bootstrap, with the synthetic catalogs rounded to two significant figures like the CNEOS table) gives p = 0.20, so the power law isn't ruled out.
+
+My exponent is 0.74 bootstrap standard deviations steeper than Brown's (0.90 sits at the 22nd percentile of my bootstrap), and N₁ is 0.8 standard deviations higher. Brown et al. used 8.5 years of satellite records up to 2002, so the 2003-2020 row uses only events they couldn't have seen.
 
 ![Cumulative impact rate](docs/figures/cumulative_flux.png)
 
+### Is that agreement real?
+
+Only if the sensors see close to the whole Earth. Brown et al.'s law is probably corrected for sensor coverage, and my rates aren't. Devillepoix et al. note that Brown et al. mention 60-80% Earth coverage for their 1994-2002 data. I can't read the paywalled paper to see exactly what was corrected, but the raw table points the same way. Devillepoix et al. date the end of Brown's study to September 2002, so I took the 8.5 years before that (March 1994 to August 2002). Over those years the raw rate is 0.60 of Brown's law at 1 kt or more (19 events), 0.68 at 3 kt or more (8 events), and 0.90 at 0.3 kt or more (84 events). Brown's law sits above the raw counts of its own years, which is what a coverage correction would do.
+
+Devillepoix et al. also found that the yearly count went up about 40% after September 2002, which they say would suggest full coverage after that. If so, my uncorrected rates since 2000 can be compared directly with Brown's corrected law, and they agree. But Corral & González, citing Brown et al. (2013), say coverage may be on the order of 80% for events above 1 kt. In that case my N₁ becomes 5.0 ± 0.5, 2.7 standard deviations above Brown's 3.7. I can't tell which is right from this table.
+
 Two other comparisons:
-- **Counting directly**, with no fit: 104 events at or above 1 kt in 26 years, 4.0 ± 0.4 per year.
-- **Corral & González** fit the same table (1994 to July 2018) and got a differential exponent of 2.022 above 0.3 kt, which is b = 1.02 in my notation, with a bootstrap standard deviation of 0.35. Mine is well inside that.
+- **Counting directly**, with no fit: 84 events at or above 1 kt in 21 years, 4.0 ± 0.4 per year.
+- **Corral & González** fit the same table (1994 to July 2018) and got a differential exponent of 2.022 above 0.3 kt from 278 events, which is b = 1.02 in my notation. Above the same 0.3 kt my b is 1.00 ± 0.06, 0.4 standard errors from theirs. Their bootstrap with the threshold chosen again each time gives 1.95 ± 0.35 for the differential exponent.
 
 ### What it means
 
 | | my fit (68% range) | Brown et al. law |
 |---|---|---|
-| Energy hit about once a year | 4.05 kt (3.49-4.73) | 4.28 kt (their abstract: about 5 kt) |
-| Years between events ≥ 440 kt (Chelyabinsk size) | 90 (63-132) | 65 |
-| Years between events ≥ 10 Mt (Tunguska size, as Brown et al. take it) | 1,820 (1,090-3,100) | 1,080 (their abstract: about 1,000) |
+| Energy hit about once a year | 4.28 kt (3.55-5.19) | 4.28 kt (their abstract: about 5 kt) |
+| Years between events ≥ 440 kt (Chelyabinsk size) | 84 (50-136) | 65 |
+| Years between events ≥ 10 Mt (Tunguska size, as Brown et al. take it) | 1,680 (790-3,290) | 1,080 (their abstract: about 1,000) |
 
-The last two rows are extrapolations. Brown et al. say their law applies from 0.1 to 10 kt. Above my threshold, every event but one is 49 kt or less (the exception is Chelyabinsk, 441 kt), and 10 Mt is more than 20 times Chelyabinsk. The small difference in exponent turns into a factor of 1.7 at 10 Mt.
+The last two rows are extrapolations, and they carry the coverage question above with them. Brown et al. say their law applies from 0.1 to 10 kt. Above my threshold, every event but one is 49 kt or less (the exception is Chelyabinsk, 441 kt), and 10 Mt is more than 20 times Chelyabinsk. The small difference in exponent turns into a factor of 1.6 at 10 Mt.
 
 ### Limits of this part
 
-- The rates aren't corrected for the fraction of the Earth the sensors watch. Corral & González note, citing Brown et al. (2013), that coverage may be on the order of 80% for events above 1 kt. If that's right, the true rates above 1 kt are about 25% higher than mine (1/0.8), and so are Brown et al.'s if they weren't corrected either; I couldn't check that in the paywalled paper.
-- The last five years have fewer events above 0.24 kt: 10.8 a year against 16.1 for 2000-2020. I only noticed this after looking at the table, so its p-value (0.001) overstates how surprising it is. The energy distribution above the threshold doesn't change shape (two-sample KS p = 0.24). I don't know why the count dropped. Leaving 2021-2025 out gives b = 0.981 and N₁ = 3.98, which still agrees with Brown et al.
+- The rates aren't corrected for the fraction of the Earth the sensors watch (see above).
+- The 2021-2025 energy shift. I don't know what caused it.
 - Every impact energy in the table comes from the radiated energy through one formula (next section), so any error in that formula moves the whole curve.
 
 ## 2. Where the impact energies come from
@@ -76,7 +98,7 @@ To be clear about what this shows: it is a check of how the column was made, not
 
 ## 3. How high they explode
 
-360 events have both an altitude of peak brightness and a velocity vector. I worked out each entry angle from the vector and the location. Five of the vectors point upward, away from the ground, which can't be right for something hitting the atmosphere, and five more are under 5° from horizontal, where my flat-Earth model is worst. That leaves 350. Their peak-brightness altitudes are 26 to 42 km for the middle 68%, with a median of 33 km.
+360 events have both an altitude of peak brightness and a velocity vector. I worked out each entry angle from the vector and the location. Five of the vectors point upward, away from the ground, which can't be right for something hitting the atmosphere, and five more are under 5° from horizontal, where my model is worst. That leaves 350. Their peak-brightness altitudes are 26 to 42 km for the middle 68%, with a median of 33 km.
 
 ### Level 1: ram pressure
 
@@ -96,15 +118,19 @@ Faster rocks do burst higher, as they should, but less steeply than one strength
 
 I wrote an entry model following Collins, Melosh & Marcus (2005), the Earth Impact Effects Program, which uses the "pancake" picture of Chyba, Thomas & Zahnle (1993). The rock flies in a straight line and slows from drag. When ρv² reaches its strength it is crushed, and the crushed mass spreads sideways under the pressure difference until it is 7 times its original width (Collins et al.'s "pancake factor"). I integrate it numerically through the U.S. Standard Atmosphere 1976 (continued exponentially above 86 km, where it hardly matters) and call the burst altitude the point where the rock is losing energy fastest, which I compare with the reported altitude of peak brightness. Size comes from the impact energy and an assumed density of 3,000 kg/m³ (the bulk density Brown et al. assume for converting telescope sizes to energies).
 
+For the 350 events the model uses a flat Earth, with each event's angle taken at its reported altitude, because the breakup and spreading that set the burst altitude happen in the last few scale heights above it. I checked that against a straight path over a round Earth (the method is in section 4) for the 30 shallowest events (5° to 16°): the strengths changed by at most 4% (median 0.4%), and none moved between the groups below.
+
 With one strength for every rock, the best choice is 3.2 MPa, and the model's burst altitudes then miss by 10.0 km RMS. The data's own spread is 9.5 km, so the model does worse than predicting the average for everything. The single-strength ram-pressure version does slightly better than the average (9.1 km). The pancake model makes big rocks burst much lower than small ones at the same strength, and the data doesn't show that: burst altitude has almost no correlation with impact energy (Spearman ρ = -0.08, p = 0.14).
 
 ![Burst altitude predictions](docs/figures/burst_altitude_prediction.png)
 
 So instead I ran the model backwards: for each event, which strength puts the model's burst at the reported altitude?
 
+**The model's burst altitude isn't quite monotonic in strength.** A stronger rock breaks lower, and as long as it breaks above the altitude where an unbroken rock would peak, it also bursts lower. But a rock that only just breaks up does so below that altitude, and the spreading pieces then peak right there, lower than a slightly weaker or a slightly stronger rock would. One step stronger, it doesn't break at all and peaks higher again. On my strength grid (10 values per factor of 10) this dip shows up for 138 of the 350 events, by more than 500 m for 93 of them and by up to 2.75 km. The inversion follows the lower edge of the curve, so it returns the weakest strength that fits.
+
 ![Implied strength](docs/figures/implied_strength.png)
 
-Of the 350 events, 308 give a definite strength. For 34 the reported burst is at or above the altitude where even a very weak rock would peak, so only an upper limit comes out, and 8 burst lower than an unbroken rock would, which gives a lower limit. In 18 (spread across those groups) the model couldn't match both the altitude and the speed (see below), and I leave those out. That leaves 303 definite strengths:
+Of the 350 events, 308 land on the sloped part of the curve and give a definite strength. For 34 the reported burst is at or above the altitude where even a very weak rock would peak, so only an upper limit comes out, and 8 burst lower than the model can put them with any strength. In 18 (spread across those groups) the model couldn't match both the altitude and the speed (see below), and I leave those out. One of them (2012-09-10) also sits in the dip, where a second, stronger value would fit too. That leaves 303 definite strengths:
 
 | | 5% | 16% | median | 84% | 95% |
 |---|---|---|---|---|---|
@@ -114,11 +140,13 @@ Of the 350 events, 308 give a definite strength. For 34 the reported burst is at
 
 Implied strength rises with speed (Spearman ρ = 0.25, p = 2 × 10⁻⁵). That is the same flat slope as above, seen from the other side: fast rocks don't burst as high as one strength predicts, so the model needs them to be stronger. It barely depends on energy (ρ = 0.11, p = 0.06).
 
-**What the speed means matters.** The CNEOS fireball page says the table gives the velocity at peak brightness, its 2013 Chelyabinsk page lists 18.6 km/s as the "velocity at peak brightness", and the API documentation says all fields refer to the peak-brightness event. But the API's July 2025 change log relabels the components as "entry velocity" components. In my model a rock has already slowed down by peak brightness, so I tried both readings:
+How much of the factor-of-10 spread is the rocks? Section 4 shows that a 6.4 km error in one reported altitude changes the implied strength by a factor of 13, and Devillepoix et al. estimate that errors in the reported speeds alone can make strengths wrong by a factor of 2 (see section 5). So a good part of the spread, maybe most of it, could be error in the data. I can't separate the two.
+
+**What the speed means matters.** The CNEOS fireball page describes the table as giving each event's "altitude and velocity at peak brightness", but the next sentence calls them "pre-impact velocity components". Its 2013 Chelyabinsk page lists 18.6 km/s as the "velocity at peak brightness", and the API documentation says all fields are relative to the peak-brightness event, while its July 2025 change log relabels the components as "entry velocity" components. In my model a rock has already slowed down by peak brightness, so I tried both readings:
 - **Speed at peak brightness:** I solve for the entry speed that makes the model's speed at the burst equal the reported one. The model needs entry speeds a median 17% higher (7% to 46% for 90% of events). That is the table above.
 - **Entry speed:** taking the reported speed as the speed at 100 km gives a median of 2.6 MPa (0.84 to 7.0 MPa for the middle 68%).
 
-On synthetic rocks (flown through the model with known strengths, then inverted from the burst altitude and the speed there), treating that speed as the entry speed gave strengths a median 0.71 of the true ones, while the matching got them back. That's why I added it. But Chelyabinsk (next section) suggests the model slows big rocks down too much, which would make the matching overcorrect. I'd put the typical strength somewhere between 2.6 and 3.5 MPa.
+On synthetic rocks (flown through the model with known strengths, then inverted from the burst altitude and the speed there), treating that speed as the entry speed gave strengths a median 0.71 of the true ones, while the matching got them back. That's the reason for the matching. But Chelyabinsk (next section) suggests the model slows big rocks down too much, which would make the matching overcorrect. I'd put the typical strength somewhere between 2.6 and 3.5 MPa.
 
 Other assumptions moved the median less:
 
@@ -140,28 +168,28 @@ The biggest event in the table is the 15 February 2013 airburst over Chelyabinsk
 |---|---|---|
 | altitude of peak brightness | 23.3 km | 29.7 ± 1.4 km (2σ) |
 | speed | 18.6 km/s (from the vector) | 19.16 km/s at entry; satellites measured 18.6 km/s at peak radiation |
-| entry angle above horizontal | 15.9° (from the vector) | 18.3 ± 0.4° |
-| radiant azimuth from north | 99.9° | 103.2 ± 0.4° (they give 283.2° from south) |
+| entry angle above horizontal, at 97.1 km | 18.1° (the CNEOS line followed back up) | 18.3 ± 0.4° |
+| radiant azimuth from north, at 97.1 km | 102.9° | 103.2 ± 0.4° (they give 283.2° from south) |
 | energy | 441 kt (from 3.75 × 10¹⁴ J radiated) | 590 ± 50 kt from the same satellite light with a different calibration; 570 ± 150 kt from infrasound |
 | diameter | | 19.8 ± 4.6 m at 3.3 g/cm³ |
 
-The speeds agree, but the altitude, angle and direction don't. The angle and azimuth gaps (2.4° and 3.3°) are much bigger than the rounding of the CNEOS numbers can explain (it moves them by about 0.1° at 1σ; `tests/test_geometry.py` checks the gap can't be rounding). Popova et al. say all their energy values are uncertain by a factor of two. They also report that two main fragments survived the disruption at 29.7 km and flared around 24 km, close to the CNEOS altitude. I can't tell from the table which part of the event the satellites' altitude refers to.
+**The direction agrees.** Popova et al. give the angle and azimuth where the fireball was first seen, at 97.1 km. The CNEOS vector gives 15.9° and 99.9° at its own peak-brightness point, which is 252 km further along the path. A straight path over a round Earth meets the local horizontal at a different angle at every point, so those numbers can't be compared directly. Following the CNEOS line back up to 97.1 km gives 18.1° and 102.9°, 0.23° and 0.34° from Popova et al.'s values and inside their 2σ (rounding the CNEOS numbers moves these by about 0.1°). The speeds agree too. The altitude and the energy don't. Popova et al. say all their energy values are uncertain by a factor of two. They also report that two main fragments survived the disruption at 29.7 km and flared around 24 km, close to the CNEOS altitude, and Devillepoix et al. note that a wrong peak height usually means the sensors recorded a different peak in the light curve. I can't tell from the table which part of the event the satellites' altitude refers to.
 
-Running the pancake model with Popova et al.'s inputs (19.16 km/s, 18.3°, 590 kt, 3.3 g/cm³):
-- The strength that puts the burst at 29.7 km is **0.17 MPa**. Popova et al. modeled the light curve with fragmentation starting at **0.2 MPa** (and the rock tolerating more as the pieces got smaller). Given 0.2 MPa, my model breaks it up at 55.3 km and puts the burst at 29.6 km. Popova et al. say fragmentation started around 83 km and sped up at 54 km.
-- But at the burst my model has slowed it to 15.6 km/s, where the satellites measured 18.6. The model drags the crushed rock too hard. To match 18.6 km/s at 29.7 km it would need an entry speed of 22.5 km/s, not 19.16, and then the strength comes out at 0.84 MPa.
+Every Chelyabinsk run here flies a straight path over a round Earth instead of the flat-Earth model of section 3. Measured along the path, none of the model's equations involve the angle, so the round Earth only changes how fast the air density rises along the path; `entry.straight_path` re-maps the density and reuses the same integrator, and a test checks it against scipy integrating the same equations in time along the real line. With Popova et al.'s inputs (19.16 km/s and 18.3° at 97.1 km, 590 kt, 3.3 g/cm³):
+- The strength that puts the burst at 29.7 km is **0.57 MPa**. Popova et al. modeled the light curve with fragmentation starting at **0.2 MPa** (and the rock tolerating more as the pieces got smaller). Given 0.2 MPa, my model breaks it up at 55.3 km and puts the burst at 30.8 km, inside their 2σ. Popova et al. say fragmentation started around 83 km and sped up at 54 km.
+- But at the burst my model has slowed it to 15.8 km/s, where the satellites measured 18.6. The model drags the crushed rock too hard. To match 18.6 km/s at 29.7 km it would need an entry speed of 22.4 km/s, not 19.16, and then the strength comes out at 1.4 MPa.
 
-With the CNEOS numbers the implied strength is 16 MPa, about 90 times more. Swapping in the CNEOS values one at a time shows where that comes from:
+With the CNEOS numbers the implied strength is 16 MPa, about 29 times more. Swapping in the CNEOS values one at a time shows where that comes from:
 
 | inputs | implied strength |
 |---|---|
-| Popova et al. | 0.17 MPa |
-| + CNEOS altitude (23.3 km) | 6.3 MPa |
-| + CNEOS angle | 7.6 MPa |
-| + CNEOS energy | 8.5 MPa |
-| + matching the CNEOS speed at the burst (needs 24.7 km/s at entry) | 16.3 MPa |
+| Popova et al. | 0.57 MPa |
+| + CNEOS altitude (23.3 km) | 7.4 MPa |
+| + the CNEOS trajectory line instead of Popova's | 7.6 MPa |
+| + CNEOS energy (441 kt) | 8.5 MPa |
+| + matching the CNEOS speed at the burst (needs 24.6 km/s at entry) | 16.2 MPa |
 
-The altitude alone does almost all of it. In plain ram-pressure terms, moving the peak from 29.7 to 23.3 km raises ρv² by a factor of 2.7, since the air gets denser by a factor of e about every 6.3 to 6.5 km there. In the pancake model the factor is 36: for a 20 m rock the burst altitude moves only slowly with strength, so matching a lower burst takes a much stronger rock. Either way, a few km of error in a reported altitude is a big error in strength, and that limits everything in section 3.
+The altitude alone does almost all of it, and the trajectory line barely matters because the two agree. In plain ram-pressure terms, moving the peak from 29.7 to 23.3 km raises ρv² by a factor of 2.7, since the air gets denser by a factor of e about every 6.3 to 6.5 km there. In the pancake model the factor is 13: for a 20 m rock the burst altitude moves only slowly with strength, so matching a lower burst takes a much stronger rock. Either way, a few km of error in a reported altitude is a big error in strength, and that limits everything in section 3.
 
 ![Chelyabinsk](docs/figures/chelyabinsk.png)
 
@@ -169,7 +197,7 @@ The altitude alone does almost all of it. In plain ram-pressure terms, moving th
 
 **Speeds.** The 363 reported speeds have a median of 17.4 km/s and a mean of 18.9 km/s (90% between 11.8 and 31.2 km/s). Brown et al. (2002) assumed an average of 20.3 km/s to turn telescope sizes into energies. If the reported speeds are at peak brightness, my model's entry speeds average 22.9 km/s, but given the Chelyabinsk result that is probably too high.
 
-**Entry angles** look isotropic. For rocks arriving from random directions, the fraction hitting at less than h above the horizon is sin²h, so the median should be 45°. The 358 CNEOS angles have a median of 43.4°, and a KS test against sin²h gives p = 0.23.
+**Entry angles** look isotropic. For rocks arriving from random directions, the fraction hitting at less than h above the horizon is sin²h, so the median should be 45°. The 358 CNEOS angles (each at its peak-brightness point) have a median of 43.4°, and a KS test against sin²h gives p = 0.23.
 
 ![Speeds and angles](docs/figures/speed_angle.png)
 
@@ -177,7 +205,7 @@ The altitude alone does almost all of it. In plain ram-pressure terms, moving th
 
 ![Map](docs/figures/world_map.png)
 
-**When they are.** By local solar time the events are not uniform: more around midnight and late morning than at dawn and in the late afternoon (χ² test over 3-hour bins, p = 2 × 10⁻⁵). Above the 0.24 kt threshold the pattern looks similar but is weaker (p = 0.06). I can't tell from this data whether that comes from the sensors or the rocks.
+**When they are.** By local solar time the events are not uniform: more around midnight and late morning than at dawn and in the late afternoon (χ² test over 3-hour bins, p = 2 × 10⁻⁵). Above the 0.21 kt threshold the pattern looks similar (p = 0.004). I can't tell from this data whether that comes from the sensors or the rocks.
 
 <img src="docs/figures/local_time.png" width="60%">
 
@@ -188,44 +216,46 @@ The altitude alone does almost all of it. In plain ram-pressure terms, moving th
 - Five velocity vectors point upward, as mentioned above.
 - The API time for Chelyabinsk is 03:20:26 UTC. CNEOS's own 2013 page gives 03:20:33 and Popova et al. give 03:20:32.2 for peak radiation.
 
-Devillepoix et al. compared the government-sensor data with 9 fireballs that were also observed independently. They found serious problems with the reported velocity vectors, bad enough that they don't trust the data for working out orbits, but concluded that sizes and strengths can still be pinned down well. Section 3 leans on both.
+Devillepoix et al. compared the government-sensor data with fireballs whose trajectories were measured independently. They found the reported velocity vectors unreliable enough that they don't trust them for working out orbits, with speeds off by as much as 28%. They estimate that the speed errors make strengths wrong by up to a factor of 2, and conclude that strength errors stay within an order of magnitude, which is good enough to tell iron, chondritic and cometary bodies apart. An order of magnitude is about the whole spread of implied strengths in section 3. They also say the reported height of peak brightness is wrong for Chelyabinsk, which matches section 4.
 
 ## What the model leaves out
 
 - Ablation: the rock loses no mass as it flies.
 - More than one breakup. Real rocks fragment in stages and get stronger as the pieces get smaller (Popova et al. model Chelyabinsk that way). Mine breaks once at one strength.
-- Gravity and the curvature of the Earth. These matter most for shallow entries, which is why I dropped the ones under 5°.
+- Gravity. Paths are straight lines. Section 3 also uses a flat Earth with each angle taken at the reported altitude; the round-Earth check above says that costs at most 4% in strength for the shallowest events. Entries under 5° are dropped.
 - Any link between brightness and energy deposition beyond "peak brightness = peak energy loss".
 - Uncertainty in the reported altitudes and speeds, which I don't propagate. The Chelyabinsk comparison suggests altitude errors of several km are possible.
 - Sensor coverage, for the rates.
 
 ## How it's checked
 
-`pytest -q` runs 48 checks in about 10 s, all offline:
+`pytest -q` runs 60 checks in about 12 s, all offline:
 
 - **API parsing** on 12 real records saved from the API, including Chelyabinsk against the numbers on CNEOS's 2013 page and the Bering Sea speed against the 32 km/s JPL figure in the CBC report.
 - **Energy relation** coefficients against the CNEOS page and Hibberd (2023), and Chelyabinsk's 90 kt radiated and 440 kt impact energy against the CNEOS page.
-- **Power-law fitting** on synthetic samples with known exponents: the maximum-likelihood fit recovers them, the bootstrap 68% interval covers the true exponent at the right rate over 200 synthetic catalogs (the test allows 58-78%), the threshold choice finds the edge of a synthetic incomplete catalog, and the goodness-of-fit test accepts a synthetic power law and rejects a synthetic lognormal. Brown et al.'s law against the two numbers in their abstract.
+- **Power-law fitting** on synthetic samples with known exponents: the maximum-likelihood fit recovers them, including from a catalog rounded to two significant figures (where treating the printed threshold as exact is shown to bias b upward); the bootstrap 68% interval covers the true exponent at the right rate over 200 synthetic catalogs (the test allows 58-78%); choosing the threshold again in each resample widens the interval; the threshold choice finds the edge of a synthetic incomplete catalog; and the goodness-of-fit test accepts a synthetic power law and rejects a synthetic lognormal. Brown et al.'s law against the two numbers in their abstract.
 - **Atmosphere** against 13 densities from the printed US76 tables (to 6 × 10⁻⁵, the precision of the table), plus the sea-level and tropopause values and the isothermal scale height.
-- **Entry model** against Collins et al.'s closed form for an unbroken rock, their breakup-altitude approximation (within 50 m), and a scipy solve of the pancake equation (within 20 m). Collins et al.'s own closed form for the pancake altitude lands 2.3 km below to 0.6 km above the exact solution over 27 cases; the test records that instead of hiding it. Also: energy is conserved, the step size is converged, the burst altitude never rises as strength increases, and the inversion recovers known strengths and entry speeds on synthetic rocks.
-- **Chelyabinsk** against Popova et al.: the burst altitude with their 0.2 MPa (within 1 km of 29.7 km), and the two disagreements (the model's speed at the burst, and the CNEOS angle and azimuth) written down as tests.
+- **Geometry**: the straight-line trace against the closed form (R + z) cos(angle) = constant.
+- **Entry model** against Collins et al.'s closed form for an unbroken rock, their breakup-altitude approximation (within 50 m), and a scipy solve of the pancake equation (within 20 m). Collins et al.'s own closed form for the pancake altitude lands 2.3 km below to 0.5 km above the exact solution over 27 cases; the test records that instead of hiding it. The straight path over a round Earth against a scipy solve in time along the real line (within 10 m for breakup and 40 m for the burst). Also: energy is conserved, the step size is converged, the burst altitude falls with strength while the rock breaks up above an unbroken rock's peak, the dip where breakup stops is there and is caught by the crossing count, and the inversion recovers known strengths and entry speeds on synthetic rocks.
+- **Chelyabinsk** against Popova et al.: the direction at 97.1 km (inside their 2σ plus rounding), the burst altitude with their 0.2 MPa (inside their 2σ), and the model's too-low speed at the burst written down as a test.
 
 ## Running it
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                          # 48 checks, ~10 s, no network
-python examples/make_figures.py    # every figure and number above, about 80 s on one core
+pytest -q                          # 60 checks, ~12 s, no network
+python examples/make_figures.py    # every figure and number above, about 100 s on one core
 python examples/fetch_data.py      # optional: download a fresh, dated snapshot from the API
 ```
 
-Every number in this README is in [`docs/results.json`](docs/results.json), which `make_figures.py` writes.
+Every number derived from the data is in [`docs/results.json`](docs/results.json), which `make_figures.py` writes. Test tolerances are in the tests.
 
 ## What I got wrong
 
 - **My entry model blew up for small rocks on shallow paths.** I first stepped the speed itself with RK4. Once a crushed rock is low in the atmosphere the drag gets so strong that a 25 m step is unstable, the power overflowed, and the overflow showed up as a fake "burst" a few km above the ground for two real events. I found it from overflow warnings during the first inversion over the whole table. Integrating ln v instead fixed it, because its rate of change doesn't depend on itself, and there's now a test for those two cases.
-- **I first fed the CNEOS speed in as the entry speed.** A synthetic test (fly rocks with known strengths, keep only what the satellites would report, invert) showed that if the speed is really measured at peak brightness, this underestimates strength by about 30%. So I added the speed matching, and then Chelyabinsk showed the matching overcorrects. That's why section 3 gives both numbers.
-- **The speed matching kept overshooting.** For small rocks that burst low, the plain update bounced back and forth instead of settling. Damping the update helped some. The 18 events that still can't match both the altitude and the speed are flagged and left out instead of forced.
+- **I compared Chelyabinsk's angles at two different points.** My first version put CNEOS's angle at the peak-brightness point next to Popova et al.'s at 97 km, reported a 2.4° and 3.3° disagreement, and had a test asserting it. Over the 252 km between those points a straight path's angle changes by more than 2°. Compared at the same point, they agree. I made the same mistake in the model runs: I used Popova et al.'s 97 km angle in the flat-Earth model as if it held all the way down, which made their implied strength 0.17 MPa instead of 0.57 and the altitude effect a factor of 36 instead of 13. That's why the Chelyabinsk runs now fly a straight path over a round Earth.
+- **I treated the printed threshold as an exact lower bound** and held it fixed in the bootstrap. The first makes b too steep by about 0.02. The second left out the threshold's own uncertainty, so the spread in b looked about a third smaller than it is (0.050 against 0.078). For 2000-2025 my first version put b 1.2 standard deviations from Brown's; done properly, the same years give 0.8.
+- **I claimed the burst altitude never rises as strength increases.** A test on three hand-picked rocks passed, but on the real inputs the curve dips where breakup stops, for 138 of the 350 events.
 - **I cited a review chapter as part of a book I hadn't checked.** The preprint I actually read doesn't say where it was published, so I cite the arXiv number.
 
 ## Sources
@@ -238,7 +268,7 @@ Every number in this README is in [`docs/results.json`](docs/results.json), whic
 - Collins, Melosh & Marcus (2005), Earth Impact Effects Program, *Meteoritics & Planetary Science* 40, 817-840
 - Chyba, Thomas & Zahnle (1993), The 1908 Tunguska explosion: atmospheric disruption of a stony asteroid, *Nature* 361, 40-44
 - Popova et al. (2013), Chelyabinsk airburst, damage assessment, meteorite recovery, and characterization, *Science* 342, 1069, [doi:10.1126/science.1242642](https://doi.org/10.1126/science.1242642)
-- Devillepoix et al., Observation of metre-scale impactors by the Desert Fireball Network, [arXiv:1808.09195](https://arxiv.org/abs/1808.09195)
+- Devillepoix et al., Observation of metre-scale impactors by the Desert Fireball Network, [arXiv:1808.09195](https://arxiv.org/abs/1808.09195) (the coverage figures for Brown et al.'s data, and the accuracy of the government-sensor speeds and heights)
 - U.S. Standard Atmosphere, 1976 (NOAA-S/T-76-1562, NASA-TM-X-74335), [NTRS 19770009539](https://ntrs.nasa.gov/citations/19770009539)
 - CBC News (18 March 2019), on the December 2018 Bering Sea fireball: [cbc.ca/news/science/meteor-bering-sea-1.5061525](https://www.cbc.ca/news/science/meteor-bering-sea-1.5061525)
 
