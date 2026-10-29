@@ -2,7 +2,7 @@
 
     python examples/make_figures.py
 
-Reads the committed CNEOS snapshot, so it needs no network. Takes about a minute on one core,
+Reads the committed CNEOS snapshot, so it needs no network. Takes about 100 s on one core,
 most of it the entry-model inversions.
 """
 from __future__ import annotations
@@ -33,7 +33,9 @@ plt.rcParams.update({"figure.dpi": 140, "axes.grid": True, "grid.color": "#e1e0d
                      "font.size": 10, "axes.titlesize": 10.5, "legend.frameon": False,
                      "axes.prop_cycle": plt.cycler(color=[BLUE, ORANGE, AQUA, YELLOW])})
 
-FIRST_YEAR, LAST_YEAR = 2000, 2025      # full calendar years used for rates (see section 1)
+FIRST_YEAR, LAST_YEAR = 2000, 2020      # full calendar years used for rates (see section 1)
+LAST_FULL_YEAR = 2025                   # 2021-2025 are complete years too, but their energies are shifted down
+SIG = 2                                 # CNEOS prints impact energies to 2 significant figures
 BULK_DENSITY = 3000.0                   # kg/m^3, the value Brown et al. (2002) assume for telescopic energies
 CHELYABINSK_DENSITY = 3300.0            # Popova et al. (2013), from the meteorites
 results: dict = {}
@@ -46,7 +48,7 @@ def save(fig, name):
     plt.close(fig)
 
 
-def rnd(x, n=3):
+def rnd(x, n=4):
     """Round for the JSON: floats to n significant figures, recursively."""
     if isinstance(x, dict):
         return {k: rnd(v, n) for k, v in x.items()}
@@ -79,28 +81,36 @@ results["data"] = {
 }
 
 # ------------------------------------------------------------------ 1. which years are complete enough
-yearly = df.groupby("year").size().reindex(range(df.year.min(), LAST_YEAR + 1), fill_value=0)
+yearly = df.groupby("year").size().reindex(range(df.year.min(), LAST_FULL_YEAR + 1), fill_value=0)
 period = df[(df.year >= FIRST_YEAR) & (df.year <= LAST_YEAR)]
 years = LAST_YEAR - FIRST_YEAR + 1
 e_all = period.impact_kt.to_numpy()
+late = df[(df.year > LAST_YEAR) & (df.year <= LAST_FULL_YEAR)]
+late_years = LAST_FULL_YEAR - LAST_YEAR
 
 # threshold: the Emin that makes the power law closest to the data (KS), over all printed energies
-emin, cands, ks = flux.choose_threshold(e_all, np.unique(e_all), min_events=50)
+emin, cands, ks = flux.choose_threshold(e_all, np.unique(e_all), min_events=50, sig_figs=SIG)
 counts_above = period[period.impact_kt >= emin].groupby("year").size().reindex(range(FIRST_YEAR, LAST_YEAR + 1), fill_value=0)
-counts_1kt = period[period.impact_kt >= 1.0].groupby("year").size().reindex(range(FIRST_YEAR, LAST_YEAR + 1), fill_value=0)
-disp_all = flux.dispersion_test(yearly.loc[FIRST_YEAR:LAST_YEAR].to_numpy())
+disp_all = flux.dispersion_test(yearly.loc[FIRST_YEAR:LAST_FULL_YEAR].to_numpy())
 disp_emin = flux.dispersion_test(counts_above.to_numpy())
-early, late = counts_above.loc[:2020], counts_above.loc[2021:]
+bands = {}
+for lo_, hi_, name in ((0, 0.1, "below_0.1"), (0.1, 0.24, "0.1_to_0.24"), (0.24, 1.0, "0.24_to_1"), (1.0, np.inf, "1_and_up")):
+    bands[name] = [float(((period.impact_kt >= lo_) & (period.impact_kt < hi_)).sum() / years),
+                   float(((late.impact_kt >= lo_) & (late.impact_kt < hi_)).sum() / late_years)]
+late_above = late[late.impact_kt >= 0.24]
+early_above_rate = float((period.impact_kt >= 0.24).sum() / years)
 results["completeness"] = {
     "mean_per_year_1994_1999": float(yearly.loc[1994:1999].mean()),
-    "mean_per_year_2000_2025": float(yearly.loc[FIRST_YEAR:LAST_YEAR].mean()),
-    "events_2000_2025": len(period),
-    "dispersion_all": {"index": disp_all[0], "p": disp_all[1]},
-    "dispersion_above_emin": {"index": disp_emin[0], "p": disp_emin[1]},
-    "rate_above_emin_2000_2020": float(early.mean()), "rate_above_emin_2021_2025": float(late.mean()),
-    "p_late_this_low_given_early_rate": float(stats.poisson.cdf(late.sum(), early.mean() * late.size)),
-    "ks_shape_early_vs_late_p": float(stats.ks_2samp(period[(period.year <= 2020) & (period.impact_kt >= emin)].impact_kt,
-                                                     period[(period.year > 2020) & (period.impact_kt >= emin)].impact_kt).pvalue),
+    "mean_per_year_2000_2025": float(yearly.loc[FIRST_YEAR:LAST_FULL_YEAR].mean()),
+    "dispersion_all_2000_2025": {"index": disp_all[0], "p": disp_all[1]},
+    "dispersion_above_emin_2000_2020": {"index": disp_emin[0], "p": disp_emin[1]},
+    "late_years": [LAST_YEAR + 1, LAST_FULL_YEAR],
+    "events_per_year_all": [float(len(period) / years), float(len(late) / late_years)],
+    "events_per_year_by_energy_kt_2000_2020_vs_2021_2025": bands,
+    "median_kt": [float(period.impact_kt.median()), float(late.impact_kt.median())],
+    "ks_all_energies_p": float(stats.ks_2samp(period.impact_kt, late.impact_kt).pvalue),
+    "ks_above_0.24kt_p": float(stats.ks_2samp(period[period.impact_kt >= 0.24].impact_kt, late_above.impact_kt).pvalue),
+    "p_late_count_above_0.24kt_this_low": float(stats.poisson.cdf(len(late_above), early_above_rate * late_years)),
 }
 
 fig, ax = plt.subplots(figsize=(8, 3.8))
@@ -112,20 +122,23 @@ ax.plot(yrs, c_e.to_numpy(), "o-", color=BLUE, ms=4, lw=1.5, label=f"impact ener
 ax.plot(yrs, c_1.to_numpy(), "s-", color=ORANGE, ms=4, lw=1.5, label="≥ 1 kt")
 ax.axvspan(FIRST_YEAR - 0.5, LAST_YEAR + 0.5, color="#f0efec", zorder=-5)
 ax.text(FIRST_YEAR + 0.2, yearly.max() * 1.02, f"years used for rates: {FIRST_YEAR}-{LAST_YEAR}", color=MUTED, fontsize=8.5)
+ax.text(LAST_YEAR + 0.7, yearly.max() * 1.02, "energies\nshift down", color=MUTED, fontsize=8, va="top")
 ax.set_xlabel("year")
 ax.set_ylabel("events per year")
-ax.set_xlim(1987, LAST_YEAR + 1)
+ax.set_xlim(1987, LAST_FULL_YEAR + 1)
 ax.set_title("CNEOS fireballs per year (2026 left out: not a full year)")
 ax.legend(loc="upper left", fontsize=8.5)
 save(fig, "yearly_counts.png")
 log("yearly counts")
 
 # ------------------------------------------------------------------ 2. power-law fit and Brown et al. (2002)
-fit = flux.fit(e_all, years, emin)
-b_boot, n1_boot = flux.bootstrap(e_all, years, emin, n_boot=4000, seed=0)
-p_gof, d_obs = flux.gof_pvalue(e_all, np.unique(e_all), n_sims=1000, seed=1)
+fit = flux.fit(e_all, years, emin, SIG)
+b_fix, n1_fix, _ = flux.bootstrap(e_all, years, emin, n_boot=4000, seed=0, sig_figs=SIG)
+b_boot, n1_boot, em_boot = flux.bootstrap(e_all, years, emin, n_boot=2000, seed=0, sig_figs=SIG, candidates=np.unique(e_all))
+p_gof, d_obs = flux.gof_pvalue(e_all, np.unique(e_all), n_sims=1000, seed=1, sig_figs=SIG)
 n_ge1 = int(np.sum(e_all >= 1.0))
 rate_ge1 = n_ge1 / years
+log("power-law fit and bootstraps")
 
 
 def per_year_energy(b, n1):
@@ -136,39 +149,68 @@ def return_period(b, n1, e_kt):
     return 1.0 / (n1 * e_kt ** -b)
 
 
+def fit_summary(e, yrs, seed):
+    """Fit with its own threshold, and the bootstrap with the threshold chosen again in every resample."""
+    em_, _, _ = flux.choose_threshold(e, np.unique(e), min_events=50, sig_figs=SIG)
+    f = flux.fit(e, yrs, em_, SIG)
+    bb, nn, ee = flux.bootstrap(e, yrs, em_, n_boot=2000, seed=seed, sig_figs=SIG, candidates=np.unique(e))
+    return {"years": yrs, "emin_kt": em_, "n": f.n, "b": f.b, "b_68": pct(bb, (16, 84)), "b_sd": float(np.std(bb)),
+            "b_minus_brown_in_sd": (f.b - flux.BROWN2002_B) / float(np.std(bb)),
+            "n1": f.n1, "n1_68": pct(nn, (16, 84)), "emin_68": pct(ee, (16, 84))}
+
+
 e1_boot = per_year_energy(b_boot, n1_boot)
 chel_boot = return_period(b_boot, n1_boot, 440.0)
 tung_boot = return_period(b_boot, n1_boot, 1.0e4)
 sens = {}
 for t in (0.1, 0.2, 0.3, 0.5, 1.0):
-    f = flux.fit(e_all, years, t)
-    sens[f"{t:g}"] = {"n": f.n, "b": f.b, "b_sigma": f.b / np.sqrt(f.n), "n1": f.n1}
+    f = flux.fit(e_all, years, t, SIG)
+    sens[f"{t:g}"] = {"n": f.n, "b": f.b, "b_sigma": f.b / np.sqrt(f.n), "n1": f.n1,
+                      "b_printed_value_as_bound": flux.pareto_mle(e_all, t)}
 post = df[(df.year >= 2003) & (df.year <= LAST_YEAR)].impact_kt.to_numpy()
-f_post = flux.fit(post, LAST_YEAR - 2003 + 1, emin)
-bp, np_ = flux.bootstrap(post, LAST_YEAR - 2003 + 1, emin, n_boot=4000, seed=2)
-pre21 = df[(df.year >= FIRST_YEAR) & (df.year <= 2020)].impact_kt.to_numpy()
-f_pre21 = flux.fit(pre21, 2020 - FIRST_YEAR + 1, emin)
-b21, n21 = flux.bootstrap(pre21, 2020 - FIRST_YEAR + 1, emin, n_boot=4000, seed=3)
+whole = df[(df.year >= FIRST_YEAR) & (df.year <= LAST_FULL_YEAR)].impact_kt.to_numpy()
+# Brown et al. (2002) used 8.5 years of records; Devillepoix et al. date the end of their study to September 2002
+brown_win = df[(df.date >= "1994-03-01") & (df.date < "2002-09-01")]
+brown_era = {f"{t:g}": {"n": int((brown_win.impact_kt >= t).sum()), "rate": float((brown_win.impact_kt >= t).sum() / 8.5),
+                        "brown_law": float(flux.brown2002_rate(t)),
+                        "ratio": float((brown_win.impact_kt >= t).sum() / 8.5 / flux.brown2002_rate(t))} for t in (0.3, 1.0, 3.0)}
+cov = 0.8
+# what my first version did: 2000-2025, the printed threshold taken as exact, and the threshold held fixed
+em_first, _, _ = flux.choose_threshold(whole, np.unique(whole), min_events=50)
+b_first = flux.pareto_mle(whole, em_first)
+bf, _, _ = flux.bootstrap(whole, LAST_FULL_YEAR - FIRST_YEAR + 1, em_first, n_boot=4000, seed=0)
+first_method = {"years": [FIRST_YEAR, LAST_FULL_YEAR], "emin_kt": em_first, "b": b_first, "b_sd": float(np.std(bf)),
+                "b_minus_brown_in_sd": (b_first - flux.BROWN2002_B) / float(np.std(bf))}
 results["flux"] = {
-    "years": [FIRST_YEAR, LAST_YEAR], "emin_kt": emin, "n_above_emin": fit.n, "rate_above_emin": fit.rate_at_emin,
+    "years": [FIRST_YEAR, LAST_YEAR], "sig_figs": SIG, "emin_kt": emin, "xmin_kt": fit.xmin, "n_above_emin": fit.n,
+    "rate_above_emin": fit.rate_at_emin,
     "b": fit.b, "b_68": pct(b_boot, (16, 84)), "b_95": pct(b_boot, (2.5, 97.5)), "b_boot_sd": float(np.std(b_boot)),
     "n1": fit.n1, "n1_68": pct(n1_boot, (16, 84)), "n1_95": pct(n1_boot, (2.5, 97.5)), "n1_boot_sd": float(np.std(n1_boot)),
+    "bootstrap_emin_median_and_68": [float(np.median(em_boot))] + pct(em_boot, (16, 84)),
+    "fixed_threshold_b_68": pct(b_fix, (16, 84)), "fixed_threshold_b_sd": float(np.std(b_fix)),
+    "b_with_printed_threshold_as_exact_bound": flux.pareto_mle(e_all, emin),
     "gof_p": p_gof, "ks_distance": d_obs,
     "direct_count_ge_1kt": n_ge1, "direct_rate_ge_1kt": rate_ge1, "direct_rate_ge_1kt_sigma": np.sqrt(n_ge1) / years,
     "energy_once_per_year_kt": fit.energy_at_rate(1.0), "energy_once_per_year_68": pct(e1_boot, (16, 84)),
     "years_between_440kt": return_period(fit.b, fit.n1, 440.0), "years_between_440kt_68": pct(chel_boot, (16, 84)),
     "years_between_10Mt": return_period(fit.b, fit.n1, 1e4), "years_between_10Mt_68": pct(tung_boot, (16, 84)),
     "threshold_sensitivity": sens,
-    "after_brown_2003_2025": {"n": f_post.n, "b": f_post.b, "b_68": pct(bp, (16, 84)), "n1": f_post.n1, "n1_68": pct(np_, (16, 84))},
-    "without_2021_2025": {"n": f_pre21.n, "b": f_pre21.b, "b_68": pct(b21, (16, 84)), "n1": f_pre21.n1, "n1_68": pct(n21, (16, 84))},
+    "after_brown_2003_2020": fit_summary(post, LAST_YEAR - 2003 + 1, seed=2),
+    "with_2021_2025": fit_summary(whole, LAST_FULL_YEAR - FIRST_YEAR + 1, seed=3),
+    "first_method_2000_2025": first_method,
     "brown2002": {"n1": flux.BROWN2002_N1, "b": flux.BROWN2002_B,
                   "energy_once_per_year_kt": (flux.BROWN2002_N1) ** (1 / flux.BROWN2002_B),
                   "years_between_440kt": 1 / flux.brown2002_rate(440.0), "years_between_10Mt": 1 / flux.brown2002_rate(1e4)},
+    "brown_era_raw_rates_1994_03_to_2002_08": brown_era,
+    "if_coverage_80pct": {"n1": fit.n1 / cov, "n1_sd": float(np.std(n1_boot)) / cov,
+                          "minus_brown_in_sd": (fit.n1 / cov - flux.BROWN2002_N1) / (float(np.std(n1_boot)) / cov)},
     "largest_two_kt": sorted(e_all)[-2:][::-1],
     "years_between_10Mt_mine_over_brown": return_period(fit.b, fit.n1, 1e4) / (1 / flux.brown2002_rate(1e4)),
     "b_minus_brown_in_sd": (fit.b - flux.BROWN2002_B) / np.std(b_boot),
     "n1_minus_brown_in_sd": (fit.n1 - flux.BROWN2002_N1) / np.std(n1_boot),
     "brown_b_percentile_in_bootstrap": float(np.mean(b_boot <= flux.BROWN2002_B) * 100),
+    "corral_gonzalez_threshold_0.3kt": {"b": sens["0.3"]["b"], "b_se": sens["0.3"]["b_sigma"],
+                                        "their_b": 2.022 - 1.0, "gap_in_se": (2.022 - 1.0 - sens["0.3"]["b"]) / sens["0.3"]["b_sigma"]},
 }
 
 fig, ax = plt.subplots(figsize=(7.2, 5))
@@ -203,7 +245,7 @@ a1.set_xlabel("threshold Emin (kt)")
 a1.set_ylabel("KS distance, data vs fitted law")
 a1.set_title("Picking the threshold")
 tt = cands[cands <= 2.0]
-bb = np.array([flux.pareto_mle(e_all, t) for t in tt])
+bb = np.array([flux.pareto_mle(e_all, t, SIG) for t in tt])
 nn = np.array([np.sum(e_all >= t) for t in tt])
 a2.semilogx(tt, bb, color=BLUE, lw=1.5, label="my fit")
 a2.fill_between(tt, bb - bb / np.sqrt(nn), bb + bb / np.sqrt(nn), color=BLUE, alpha=0.18, lw=0)
@@ -259,7 +301,7 @@ rms_null = float(np.sqrt(np.mean((z_obs - z_obs.mean()) ** 2)))
 inv = airburst.implied_strength(z_obs, v_obs, ab.angle.to_numpy(), ab.impact_kt.to_numpy() * energy.KT_J, BULK_DENSITY)
 y_single, rms_single, rms_curve = airburst.single_strength_fit(z_obs, inv.grid_burst_alt, inv.strengths)
 i_single = int(np.argmin(rms_curve))
-good = (inv.flag == 0) & inv.speed_matched
+good = (inv.flag == 0) & inv.speed_matched & ~inv.ambiguous
 s_good = inv.strength[good]
 log("strength inversion (baseline)")
 
@@ -268,7 +310,7 @@ for name, kw in {"density_1500": dict(density=1500.0), "density_3300": dict(dens
                  "pancake_factor_4": dict(density=BULK_DENSITY, fp=4.0)}.items():
     d = kw.pop("density")
     iv = airburst.implied_strength(z_obs, v_obs, ab.angle.to_numpy(), ab.impact_kt.to_numpy() * energy.KT_J, d, **kw)
-    ok = (iv.flag == 0) & iv.speed_matched
+    ok = (iv.flag == 0) & iv.speed_matched & ~iv.ambiguous
     variants[name] = {"n_resolved": int(ok.sum()), "median_MPa": float(np.median(iv.strength[ok]) / 1e6),
                       "p16_p84_MPa": [v / 1e6 for v in pct(iv.strength[ok], (16, 84))]}
     log(f"strength inversion ({name})")
@@ -286,13 +328,33 @@ syn_e = 0.5 * entry.mass(syn_L0, BULK_DENSITY) * syn_v0**2
 syn_inv = airburst.implied_strength(syn.burst_alt, syn.burst_speed, syn_th, syn_e, BULK_DENSITY)
 syn_raw, syn_fraw, _ = entry.invert_strength(syn.burst_alt, entry.diameter_from_energy(syn_e, syn.burst_speed, BULK_DENSITY),
                                              BULK_DENSITY, syn.burst_speed, syn_th)
-syn_ok = (syn_inv.flag == 0) & syn_inv.speed_matched & (syn_fraw == 0)
+syn_ok = (syn_inv.flag == 0) & syn_inv.speed_matched & ~syn_inv.ambiguous & (syn_fraw == 0)
 synthetic_speed_check = {"label": "SYNTHETIC rocks, not data", "n": int(syn_ok.sum()),
                          "matched_over_true_median": float(np.median(syn_inv.strength[syn_ok] / syn_y[syn_ok])),
                          "speed_as_entry_over_true_median": float(np.median(syn_raw[syn_ok] / syn_y[syn_ok]))}
 variants["speed_as_entry_speed"] = {"n_resolved": int(np.sum(f_raw == 0)), "median_MPa": float(np.median(s_raw[f_raw == 0]) / 1e6),
                                     "p16_p84_MPa": [v / 1e6 for v in pct(s_raw[f_raw == 0], (16, 84))]}
 log("strength inversion (speed as entry speed)")
+
+# The flat-Earth model uses each event's angle at its reported altitude. Check that against a straight
+# path over a round Earth for the 30 shallowest events, where curvature matters most (same entry speed
+# and size as the baseline, so only the geometry changes).
+shallow = np.argsort(ab.angle.to_numpy())[:30]
+flat_s, flat_f, _ = entry.invert_strength(z_obs[shallow], inv.diameter[shallow], BULK_DENSITY, inv.entry_speed[shallow],
+                                          ab.angle.to_numpy()[shallow])
+curved_s, curved_f = np.empty(shallow.size), np.empty(shallow.size, int)
+for k, j in enumerate(shallow):
+    fa, rho_f, to_true, to_flat = entry.straight_path(ab.angle[j], z_obs[j])
+    sj, fj, _ = entry.invert_strength([to_flat(z_obs[j])], inv.diameter[j], BULK_DENSITY, inv.entry_speed[j], fa, rho=rho_f)
+    curved_s[k], curved_f[k] = sj[0], fj[0]
+both_res = (flat_f == 0) & (curved_f == 0)
+ratio_c = curved_s[both_res] / flat_s[both_res]
+curvature_check = {"events": int(shallow.size), "angle_range_deg": [float(ab.angle.to_numpy()[shallow].min()),
+                                                                    float(ab.angle.to_numpy()[shallow].max())],
+                   "both_resolved": int(both_res.sum()), "curved_over_flat_median": float(np.median(ratio_c)),
+                   "curved_over_flat_min_max": [float(ratio_c.min()), float(ratio_c.max())],
+                   "same_flag": int(np.sum(flat_f == curved_f))}
+log("curvature check")
 
 rho_sv = stats.spearmanr(s_good, v_obs[good])
 rho_se = stats.spearmanr(s_good, ab.impact_kt.to_numpy()[good])
@@ -311,8 +373,16 @@ results["airburst"] = {
     "inversion": {
         "bulk_density": BULK_DENSITY, "pancake_factor": entry.FP,
         "resolved": int(np.sum(inv.flag == 0)), "upper_limits": int(np.sum(inv.flag == -1)),
-        "lower_limits": int(np.sum(inv.flag == 1)), "speed_not_matched": int(np.sum(~inv.speed_matched)),
-        "resolved_and_matched": int(good.sum()),
+        "below_model_lowest_burst": int(np.sum(inv.flag == 1)), "speed_not_matched": int(np.sum(~inv.speed_matched)),
+        "ambiguous_two_strengths_fit": int(np.sum(inv.ambiguous)),
+        "ambiguous_counting_crossings_under_50m_too": int(np.sum(entry.burst_curve_crossings(z_obs, inv.grid_burst_alt, tol=0.0) > 1)),
+        "ambiguous": [{"date": str(ab.date[j]), "flag": int(inv.flag[j]), "speed_matched": bool(inv.speed_matched[j])}
+                      for j in np.flatnonzero(inv.ambiguous)],
+        "resolved_matched_and_unique": int(good.sum()),
+        "burst_curve_rises_with_strength": {"events": int(np.sum(inv.rise > 25.0)), "by_more_than_500m": int(np.sum(inv.rise > 500.0)),
+                                            "max_km": float(inv.rise.max()) / 1e3,
+                                            "max_event": str(ab.date[int(np.argmax(inv.rise))])},
+        "curvature_check": curvature_check,
         "strength_MPa_5_16_50_84_95": [v / 1e6 for v in pct(s_good, (5, 16, 50, 84, 95))],
         "strength_over_ram_pressure_median": float(np.median(s_good / q_peak[good])),
         "entry_over_reported_speed_5_50_95": pct(inv.entry_speed[inv.speed_matched] / v_obs[inv.speed_matched], (5, 50, 95)),
@@ -342,9 +412,9 @@ save(fig, "burst_altitude_prediction.png")
 
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.5, 4.2), sharey=True)
 styles = {0: dict(marker="o", color=BLUE, label="resolved"), -1: dict(marker="v", color=ORANGE, label="upper limit"),
-          1: dict(marker="^", color=AQUA, label="lower limit")}
+          1: dict(marker="^", color=AQUA, label="below model's lowest burst")}
 for f, st in styles.items():
-    m = (inv.flag == f) & inv.speed_matched
+    m = (inv.flag == f) & inv.speed_matched & ~inv.ambiguous
     a1.semilogy(v_obs[m] / 1e3, inv.strength[m] / 1e6, st["marker"], color=st["color"], ms=4, ls="none",
                 mfc="none" if f else st["color"], label=f"{st['label']} ({m.sum()})")
     a2.loglog(ab.impact_kt.to_numpy()[m], inv.strength[m] / 1e6, st["marker"], color=st["color"], ms=4, ls="none",
@@ -362,7 +432,7 @@ save(fig, "implied_strength.png")
 fig, ax = plt.subplots(figsize=(6.5, 4))
 binsq = np.geomspace(1e4, 3e8, 36)
 ax.hist(q_peak, bins=binsq, color="#9ec5f4", label="ram pressure ρv² at peak brightness")
-ax.hist(s_good, bins=binsq, histtype="step", color=BLUE, lw=2, label="pancake-model strength (resolved)")
+ax.hist(s_good, bins=binsq, histtype="step", color=BLUE, lw=2, label=f"pancake-model strength ({good.sum()} resolved)")
 ax.set_xscale("log")
 ax.set_xlabel("pressure (Pa)")
 ax.set_ylabel("events")
@@ -371,85 +441,123 @@ save(fig, "strength_hist.png")
 log("airburst figures")
 
 # ------------------------------------------------------------------ 5. Chelyabinsk
+# Every Chelyabinsk run flies a straight path over a round Earth (entry.straight_path). Popova et al. give
+# their angle at the first video point, 97.1 km; CNEOS's vector gives it at the peak-brightness point.
 che_row = df.loc[df.impact_kt.idxmax()]
-che_angle = float(geometry.entry_angle_deg(che_row.lat, che_row.lon, che_row.vx, che_row.vy, che_row.vz))
-che_az = float(geometry.radiant_azimuth_deg(che_row.lat, che_row.lon, che_row.vx, che_row.vy, che_row.vz))
-che_inv = airburst.implied_strength([che_row.alt_km * 1e3], [che_row.speed * 1e3], che_angle,
-                                    che_row.impact_kt * energy.KT_J, CHELYABINSK_DENSITY, dz=10.0)
-# Popova et al. (2013): 19.16 km/s at 97 km, 18.3 deg, 590 kt, 3.3 g/cm^3, peak radiation 29.7 km
-POP = dict(v0=19.16e3, angle=18.3, energy_kt=590.0, z_peak=29.7e3, v_peak_satellite=18.6e3, y_onset=0.2e6, diameter=19.8)
-pop_L0 = float(entry.diameter_from_energy(POP["energy_kt"] * energy.KT_J, POP["v0"], CHELYABINSK_DENSITY))
-s_pop, f_pop, r_pop = entry.invert_strength([POP["z_peak"]], pop_L0, CHELYABINSK_DENSITY, POP["v0"], POP["angle"], dz=10.0)
-grid = entry.strength_grid()
-v_burst_pop = float(np.interp(np.log10(s_pop[0]), np.log10(grid), r_pop.burst_speed[0]))
+che_v = np.array([che_row.vx, che_row.vy, che_row.vz])
+che_angle = float(geometry.entry_angle_deg(che_row.lat, che_row.lon, *che_v))
+che_az = float(geometry.radiant_azimuth_deg(che_row.lat, che_row.lon, *che_v))
+che_z = che_row.alt_km * 1e3
+# Popova et al. (2013), Table 1 and text: first seen at 97.1 km, 19.16 km/s, 18.3 deg there, 590 kt, 3.3 g/cm^3,
+# peak radiation 29.7 km, satellites' 18.6 km/s at peak radiation, fragmentation starting at 0.2 MPa
+POP = dict(z_start=97.1e3, v0=19.16e3, angle=18.3, azimuth_from_north=283.2 - 180.0, energy_kt=590.0, z_peak=29.7e3,
+           v_peak_satellite=18.6e3, y_onset=0.2e6, diameter=19.8)
+_, _, che_h97, che_az97 = (float(x) for x in geometry.trace_to_altitude(che_row.lat, che_row.lon, che_row.alt_km, *che_v,
+                                                                         POP["z_start"] / 1e3))
+# how much do those move if each printed number is anywhere within its rounding?
+rr = np.random.default_rng(5)
+rr_v = che_v + rr.uniform(-0.05, 0.05, (20000, 3))
+rr_la, rr_lo = che_row.lat + rr.uniform(-0.05, 0.05, 20000), che_row.lon + rr.uniform(-0.05, 0.05, 20000)
+rr_al = che_row.alt_km + rr.uniform(-0.05, 0.05, 20000)
+_, _, rr_h, rr_az = geometry.trace_to_altitude(rr_la, rr_lo, rr_al, *rr_v.T, POP["z_start"] / 1e3)
+
+pop_path = entry.straight_path(POP["angle"], POP["z_start"])
 
 
-def che_strength(z, v0, angle, e_kt):
+def path_km(angle_deg, z_from_km, z_to_km, r=geometry.R_EARTH_KM):
+    """Distance along a straight line between two altitudes, (R + z) cos(angle) being constant."""
+    p_ = (r + z_from_km) * np.cos(np.radians(angle_deg))
+    return abs(np.sqrt((r + z_to_km) ** 2 - p_**2) - np.sqrt((r + z_from_km) ** 2 - p_**2))
+
+
+che_path = entry.straight_path(che_angle, che_z)
+
+
+def che_invert(z, v0, e_kt, path):
+    fa, rho_f, to_true, to_flat = path
     L0 = entry.diameter_from_energy(e_kt * energy.KT_J, v0, CHELYABINSK_DENSITY)
-    s, f, _ = entry.invert_strength([z], L0, CHELYABINSK_DENSITY, v0, angle, dz=10.0)
-    return float(s[0]) / 1e6
+    s_, f_, r_ = entry.invert_strength([to_flat(z)], L0, CHELYABINSK_DENSITY, v0, fa, dz=10.0, rho=rho_f)
+    vb = float(np.interp(np.log10(s_[0]), np.log10(entry.strength_grid()), r_.burst_speed[0]))
+    return float(s_[0]), int(f_[0]), L0, vb
 
 
+def che_matched(z, v_obs, e_kt, path):
+    fa, rho_f, to_true, to_flat = path
+    return airburst.implied_strength([to_flat(z)], [v_obs], fa, e_kt * energy.KT_J, CHELYABINSK_DENSITY, dz=10.0, rho=rho_f)
+
+
+def che_run(L0, v0, y, path):
+    fa, rho_f, to_true, _ = path
+    r = entry.simulate(L0, CHELYABINSK_DENSITY, v0, fa, y, dz=10.0, rho=rho_f, keep_profile=True)
+    return r, to_true
+
+
+s_pop, f_pop, pop_L0, v_burst_pop = che_invert(POP["z_peak"], POP["v0"], POP["energy_kt"], pop_path)
+che_inv = che_matched(che_z, che_row.speed * 1e3, che_row.impact_kt, che_path)
+pop_matched = che_matched(POP["z_peak"], POP["v_peak_satellite"], POP["energy_kt"], pop_path)
 steps = {
-    "popova_inputs": che_strength(POP["z_peak"], POP["v0"], POP["angle"], POP["energy_kt"]),
-    "cneos_altitude": che_strength(che_row.alt_km * 1e3, POP["v0"], POP["angle"], POP["energy_kt"]),
-    "cneos_altitude_angle": che_strength(che_row.alt_km * 1e3, POP["v0"], che_angle, POP["energy_kt"]),
-    "cneos_altitude_angle_energy": che_strength(che_row.alt_km * 1e3, POP["v0"], che_angle, che_row.impact_kt),
+    "popova_inputs": s_pop / 1e6,
+    "cneos_altitude": che_invert(che_z, POP["v0"], POP["energy_kt"], pop_path)[0] / 1e6,
+    "cneos_altitude_and_path": che_invert(che_z, POP["v0"], POP["energy_kt"], che_path)[0] / 1e6,
+    "cneos_altitude_path_energy": che_invert(che_z, POP["v0"], che_row.impact_kt, che_path)[0] / 1e6,
     "cneos_all_speed_matched": float(che_inv.strength[0]) / 1e6,
 }
-# how much do the CNEOS angle and azimuth move if each printed number is anywhere within its rounding?
-rr = np.random.default_rng(5)
-rr_v = np.array([che_row.vx, che_row.vy, che_row.vz]) + rr.uniform(-0.05, 0.05, (20000, 3))
-rr_la, rr_lo = che_row.lat + rr.uniform(-0.05, 0.05, 20000), che_row.lon + rr.uniform(-0.05, 0.05, 20000)
-rr_h = geometry.entry_angle_deg(rr_la, rr_lo, *rr_v.T)
-rr_az = geometry.radiant_azimuth_deg(rr_la, rr_lo, *rr_v.T)
-pop_matched = airburst.implied_strength([POP["z_peak"]], [POP["v_peak_satellite"]], POP["angle"],
-                                        POP["energy_kt"] * energy.KT_J, CHELYABINSK_DENSITY, dz=10.0)
+# the same Popova-input inversions in the flat model with their 97.1 km angle, which is what I first did
+flat_old = entry.invert_strength([POP["z_peak"]], pop_L0, CHELYABINSK_DENSITY, POP["v0"], POP["angle"], dz=10.0)[0][0]
+flat_old_23 = entry.invert_strength([che_z], pop_L0, CHELYABINSK_DENSITY, POP["v0"], POP["angle"], dz=10.0)[0][0]
 runs = {
-    "cneos": entry.simulate(che_inv.diameter[0], CHELYABINSK_DENSITY, che_inv.entry_speed[0], che_angle, che_inv.strength[0],
-                            dz=10.0, keep_profile=True),
-    "popova_implied": entry.simulate(pop_L0, CHELYABINSK_DENSITY, POP["v0"], POP["angle"], s_pop[0], dz=10.0, keep_profile=True),
-    "popova_0.2MPa": entry.simulate(pop_L0, CHELYABINSK_DENSITY, POP["v0"], POP["angle"], POP["y_onset"], dz=10.0, keep_profile=True),
+    "cneos": che_run(che_inv.diameter[0], che_inv.entry_speed[0], che_inv.strength[0], che_path),
+    "popova_implied": che_run(pop_L0, POP["v0"], s_pop, pop_path),
+    "popova_0.2MPa": che_run(pop_L0, POP["v0"], POP["y_onset"], pop_path),
 }
+r02, tt02 = runs["popova_0.2MPa"]
 results["chelyabinsk"] = {
     "cneos": {"date": str(che_row.date), "alt_km": che_row.alt_km, "speed_km_s": che_row.speed, "impact_kt": che_row.impact_kt,
               "radiated_J": che_row.radiated_J, "entry_angle_deg": che_angle, "radiant_azimuth_deg": che_az,
-              "ram_pressure_at_peak_MPa": float(airburst.ram_pressure(che_row.alt_km * 1e3, che_row.speed * 1e3)) / 1e6,
+              "ram_pressure_at_peak_MPa": float(airburst.ram_pressure(che_z, che_row.speed * 1e3)) / 1e6,
               "implied_strength_MPa": float(che_inv.strength[0]) / 1e6, "flag": int(che_inv.flag[0]),
               "model_entry_speed_km_s": float(che_inv.entry_speed[0]) / 1e3, "model_diameter_m": float(che_inv.diameter[0]),
-              "breakup_alt_km": float(runs["cneos"].breakup_alt) / 1e3},
+              "breakup_alt_km": float(runs["cneos"][1](runs["cneos"][0].breakup_alt)) / 1e3},
+    "direction_at_97km": {"cneos_line_angle_deg": che_h97, "cneos_line_azimuth_deg": che_az97,
+                          "popova_angle_deg": POP["angle"], "popova_azimuth_deg": POP["azimuth_from_north"],
+                          "angle_gap_deg": POP["angle"] - che_h97, "azimuth_gap_deg": POP["azimuth_from_north"] - che_az97,
+                          "rounding_sd_deg": [float(np.std(rr_h)), float(np.std(rr_az))],
+                          "path_length_km_97_to_peak": float(path_km(che_angle, che_row.alt_km, POP["z_start"] / 1e3)),
+                          "gap_if_compared_at_different_points_deg": [POP["angle"] - che_angle, POP["azimuth_from_north"] - che_az]},
+    "popova_line_angle_deg_at": {"29.7km": float(geometry.angle_at_altitude(POP["angle"], 97.1, 29.7)),
+                                 "23.3km": float(geometry.angle_at_altitude(POP["angle"], 97.1, che_row.alt_km))},
     "popova2013_inputs": {"diameter_from_energy_m": pop_L0,
                           "ram_pressure_at_peak_MPa": float(airburst.ram_pressure(POP["z_peak"], POP["v_peak_satellite"])) / 1e6,
-                          "implied_strength_MPa": float(s_pop[0]) / 1e6, "flag": int(f_pop[0]),
+                          "implied_strength_MPa": s_pop / 1e6, "flag": f_pop,
                           "model_speed_at_burst_km_s": v_burst_pop / 1e3,
-                          "breakup_alt_km": float(runs["popova_implied"].breakup_alt) / 1e3,
-                          "with_0.2MPa": {"breakup_alt_km": float(runs["popova_0.2MPa"].breakup_alt) / 1e3,
-                                          "burst_alt_km": float(runs["popova_0.2MPa"].burst_alt) / 1e3,
-                                          "pancake_alt_km": float(runs["popova_0.2MPa"].pancake_alt) / 1e3}},
+                          "breakup_alt_km": float(runs["popova_implied"][1](runs["popova_implied"][0].breakup_alt)) / 1e3,
+                          "flat_model_with_97km_angle_MPa": float(flat_old) / 1e6,
+                          "flat_model_with_97km_angle_altitude_ratio": float(flat_old_23 / flat_old),
+                          "with_0.2MPa": {"breakup_alt_km": float(tt02(r02.breakup_alt)) / 1e3,
+                                          "burst_alt_km": float(tt02(r02.burst_alt)) / 1e3,
+                                          "burst_speed_km_s": float(r02.burst_speed) / 1e3}},
     "popova2013": POP,
     "strength_MPa_swapping_inputs": steps,
     "popova_altitude_speed_matched": {"strength_MPa": float(pop_matched.strength[0]) / 1e6,
                                       "entry_speed_needed_km_s": float(pop_matched.entry_speed[0]) / 1e3},
     "altitude_difference_km": POP["z_peak"] / 1e3 - che_row.alt_km,
-    "angle_gap_deg": POP["angle"] - che_angle, "azimuth_gap_deg": (283.2 - 180.0) - che_az,
-    "angle_and_azimuth_sd_from_rounding_deg": [float(np.std(rr_h)), float(np.std(rr_az))],
-    "strength_ratio_cneos_over_popova": float(che_inv.strength[0]) / 1e6 / steps["popova_inputs"],
+    "strength_ratio_cneos_over_popova": float(che_inv.strength[0]) / s_pop,
     "strength_ratio_altitude_alone": steps["cneos_altitude"] / steps["popova_inputs"],
-    "ram_pressure_ratio_23_3_vs_29_7_km": float(airburst.ram_pressure(che_row.alt_km * 1e3, 18.6e3)
+    "ram_pressure_ratio_23_3_vs_29_7_km": float(airburst.ram_pressure(che_z, 18.6e3)
                                                 / airburst.ram_pressure(POP["z_peak"], 18.6e3)),
     "scale_height_km_at_23_and_30_km": [float(h) / 1e3 for h in atmosphere.scale_height(np.array([23.3e3, 29.7e3]))],
 }
 
 fig, ax = plt.subplots(figsize=(6.5, 5))
-labels = {"cneos": (BLUE, "-", f"CNEOS inputs, implied strength {che_inv.strength[0] / 1e6:.1f} MPa"),
-          "popova_implied": (ORANGE, "-", f"Popova et al. inputs, implied strength {s_pop[0] / 1e6:.1f} MPa"),
+labels = {"cneos": (BLUE, "-", f"CNEOS inputs, implied strength {che_inv.strength[0] / 1e6:.2g} MPa"),
+          "popova_implied": (ORANGE, "-", f"Popova et al. inputs, implied strength {s_pop / 1e6:.2g} MPa"),
           "popova_0.2MPa": (ORANGE, "--", "Popova et al. inputs, 0.2 MPa (their fragmentation onset)")}
-for k, r in runs.items():
-    z = r.profile["z"]
-    th = che_angle if k == "cneos" else POP["angle"]
-    dEdz = r.profile["power"] / (r.profile["v"] * np.sin(np.radians(th)))   # J per metre of altitude
+for k, (r, to_true) in runs.items():
+    m = entry.mass(che_inv.diameter[0] if k == "cneos" else pop_L0, CHELYABINSK_DENSITY)
+    z_true = to_true(r.profile["z"])
+    dEdz = np.gradient(0.5 * m * r.profile["v"] ** 2, z_true)     # J per metre of altitude
     col, ls, lab = labels[k]
-    ax.plot(dEdz * 1e3 / energy.KT_J, z / 1e3, color=col, ls=ls, lw=1.8, label=lab)
+    ax.plot(dEdz * 1e3 / energy.KT_J, z_true / 1e3, color=col, ls=ls, lw=1.8, label=lab)
 ax.axhline(che_row.alt_km, color=BLUE, lw=0.8, ls=":")
 ax.axhline(POP["z_peak"] / 1e3, color=ORANGE, lw=0.8, ls=":")
 ax.text(ax.get_xlim()[1] * 0.98, che_row.alt_km - 3.2, f"CNEOS peak brightness {che_row.alt_km} km", ha="right", fontsize=8, color=INK)
@@ -457,7 +565,7 @@ ax.text(ax.get_xlim()[1] * 0.98, POP["z_peak"] / 1e3 + 0.6, "Popova et al. peak 
 ax.set_ylim(10, 60)
 ax.set_xlabel("energy deposited (kt per km of altitude)")
 ax.set_ylabel("altitude (km)")
-ax.set_title("Chelyabinsk in the pancake model")
+ax.set_title("Chelyabinsk in the pancake model (straight path over a round Earth)", fontsize=10)
 ax.legend(fontsize=8, loc="upper right")
 save(fig, "chelyabinsk.png")
 log("Chelyabinsk")
@@ -468,7 +576,7 @@ vel["angle"] = geometry.entry_angle_deg(vel.lat, vel.lon, vel.vx, vel.vy, vel.vz
 mism = vel[np.abs(vel.speed - vel.vel_api) > 0.15]
 ang = vel.angle[vel.angle > 0].to_numpy()
 ks_ang = stats.kstest(ang, lambda a: geometry.isotropic_entry_angle_cdf(np.clip(a, 0, 90)))
-with_v = df[(df.year >= 2008) & (df.year <= LAST_YEAR)]
+with_v = df[(df.year >= 2008) & (df.year <= LAST_FULL_YEAR)]
 mw = stats.mannwhitneyu(with_v[with_v.speed.notna()].impact_kt, with_v[with_v.speed.isna()].impact_kt)
 loc = df[df.lat.notna()].copy()
 sinlat = np.sin(np.radians(loc.lat))
@@ -490,7 +598,7 @@ results["population"] = {
                     "frac_below_30": float(np.mean(ang < 30)), "isotropic_frac_below_30": 0.25},
     "velocity_reported_events_more_energetic": {"median_with_kt": float(with_v[with_v.speed.notna()].impact_kt.median()),
                                                 "median_without_kt": float(with_v[with_v.speed.isna()].impact_kt.median()),
-                                                "p": float(mw.pvalue), "years": [2008, LAST_YEAR]},
+                                                "p": float(mw.pvalue), "years": [2008, LAST_FULL_YEAR]},
     "location": {"n": len(loc), "north_fraction": float(np.mean(loc.lat > 0)),
                  "fraction_within_30deg_of_equator": float(np.mean(np.abs(loc.lat) < 30)),
                  "ks_lat_uniform_sphere_p": float(ks_lat.pvalue), "ks_lon_uniform_p": float(ks_lon.pvalue)},
