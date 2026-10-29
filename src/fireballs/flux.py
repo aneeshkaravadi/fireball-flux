@@ -112,3 +112,38 @@ def bootstrap(e_kt, years: float, emin: float, n_boot: int = 4000, seed: int = 0
         b[i] = n / s.sum()
         n1[i] = n / years * emin ** b[i]
     return b, n1
+
+
+def gof_pvalue(e_kt, candidates, n_sims: int = 1000, seed: int = 0, sig_figs: int | None = 2,
+               min_events: int = 50):
+    """Goodness-of-fit p-value for the power law, the semi-parametric bootstrap of Clauset et al. (2009).
+
+    Each synthetic catalog has the same size as the real one: with the real tail fraction, an event
+    comes from the fitted power law above Emin, otherwise it is resampled from the real events below
+    Emin. Each one is then refit from scratch, threshold choice included, and the p-value is the
+    fraction whose KS distance is at least the real one. Small p (Clauset suggest p <= 0.1) means
+    the power law is ruled out.
+
+    CNEOS prints impact energies to two significant figures, which creates ties that make the KS
+    distance a bit bigger. Rounding the synthetic catalogs the same way (sig_figs=2) keeps that from
+    counting against the power law.
+    """
+    from .energy import round_sig
+
+    rng = np.random.default_rng(seed)
+    e = np.asarray(e_kt, dtype=float)
+    emin, _, _ = choose_threshold(e, candidates, min_events)
+    b = pareto_mle(e, emin)
+    d_obs = ks_distance(e, emin, b)
+    body = e[e < emin]
+    p_tail = np.mean(e >= emin)
+    d_sim = np.empty(n_sims)
+    for i in range(n_sims):
+        n_t = rng.binomial(e.size, p_tail)
+        x = np.concatenate([emin * rng.uniform(size=n_t) ** (-1.0 / b),
+                            rng.choice(body, e.size - n_t) if body.size else np.empty(0)])
+        if sig_figs:
+            x = round_sig(x, sig_figs)
+        em, _, _ = choose_threshold(x, candidates, min_events)
+        d_sim[i] = ks_distance(x, em, pareto_mle(x, em))
+    return float(np.mean(d_sim >= d_obs)), float(d_obs)

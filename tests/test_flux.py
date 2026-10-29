@@ -70,3 +70,16 @@ def test_brown2002_law_matches_the_abstract():
     """Nature 420, 294 abstract: about one 5 kt event a year, and Tunguska-like (10 Mt) about every 1,000 years."""
     assert flux.brown2002_rate(5.0) == pytest.approx(1.0, rel=0.15)
     assert 1.0 / flux.brown2002_rate(1.0e4) == pytest.approx(1000, rel=0.1)
+
+
+def test_goodness_of_fit_accepts_a_power_law_and_rejects_a_lognormal():
+    """SYNTHETIC: a rounded power-law catalog passes the Clauset et al. test, a lognormal one fails."""
+    from fireballs.energy import round_sig
+
+    rng = np.random.default_rng(7)
+    x = round_sig(synthetic_pareto(0.9, 0.2, 600, rng), 2)
+    p, _ = flux.gof_pvalue(x, np.unique(x), n_sims=100)
+    assert p > 0.1
+    y = round_sig(np.exp(rng.normal(np.log(0.2), 1.0, 3000)), 2)
+    p, _ = flux.gof_pvalue(y, np.unique(y), n_sims=100)
+    assert p < 0.05
