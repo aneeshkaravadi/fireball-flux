@@ -4,10 +4,19 @@ CNEOS gives the velocity at peak brightness in an Earth-centered, Earth-fixed fr
 rotation axis toward the north pole, x in the equator toward the prime meridian, y completing a
 right-handed set (https://cneos.jpl.nasa.gov/fireballs/intro.html). I use a spherical Earth for the
 local vertical; the geodetic correction is under 0.2 degrees, well below the precision of the data.
+
+An angle measured against the local horizontal belongs to one point on the path. A straight path
+over a curved Earth meets the horizontal at a different angle at every altitude: (R + z) cos(angle)
+is the distance of the line from the Earth's center at its closest point, so it stays the same all
+along the line. Over the 250 km of path between 97 km and 23 km altitude, Chelyabinsk's angle changes
+by more than 2 degrees. So two angles can only be compared at the same point on the path.
 """
 from __future__ import annotations
 
 import numpy as np
+
+R_EARTH_KM = 6371.0     # mean radius of the spherical Earth used here
+
 
 
 def enu_basis(lat_deg, lon_deg):
@@ -34,6 +43,40 @@ def radiant_azimuth_deg(lat_deg, lon_deg, vx, vy, vz):
     east, north, _ = enu_basis(lat_deg, lon_deg)
     heading = np.degrees(np.arctan2(np.sum(v * east, axis=-1), np.sum(v * north, axis=-1)))
     return (heading + 180.0) % 360.0
+
+
+def angle_at_altitude(angle_deg, alt_from_km, alt_to_km, radius_km: float = R_EARTH_KM):
+    """Entry angle of the same straight path at another altitude ((R + z) cos(angle) is constant).
+
+    nan where the line never gets down to `alt_to_km`.
+    """
+    c = (radius_km + np.asarray(alt_from_km, float)) * np.cos(np.radians(angle_deg)) / (radius_km + np.asarray(alt_to_km, float))
+    with np.errstate(invalid="ignore"):
+        return np.where(c <= 1.0, np.degrees(np.arccos(np.minimum(c, 1.0))), np.nan)
+
+
+def trace_to_altitude(lat_deg, lon_deg, alt_km, vx, vy, vz, target_alt_km, radius_km: float = R_EARTH_KM):
+    """Follow the straight line through a reported point up (backward in time) or down to `target_alt_km`.
+
+    Returns the latitude, longitude, entry angle and radiant azimuth (degrees) at that point, on a
+    spherical Earth. The velocity vector itself doesn't change along a straight line; only the local
+    vertical does.
+    """
+    v = np.stack([np.asarray(vx, float), np.asarray(vy, float), np.asarray(vz, float)], axis=-1)
+    _, _, up = enu_basis(lat_deg, lon_deg)
+    r0 = (radius_km + np.asarray(alt_km, float))[..., None] * up
+    vhat = v / np.linalg.norm(v, axis=-1, keepdims=True)
+    rising = np.asarray(target_alt_km, float) > np.asarray(alt_km, float)
+    d = np.where(rising[..., None], -vhat, vhat)
+    b = np.sum(r0 * d, axis=-1)
+    c = np.sum(r0 * r0, axis=-1) - (radius_km + np.asarray(target_alt_km, float)) ** 2
+    with np.errstate(invalid="ignore"):
+        root = np.sqrt(b * b - c)
+    t = np.where(rising, -b + root, -b - root)
+    r1 = r0 + t[..., None] * d
+    lat1 = np.degrees(np.arcsin(r1[..., 2] / np.linalg.norm(r1, axis=-1)))
+    lon1 = np.degrees(np.arctan2(r1[..., 1], r1[..., 0]))
+    return lat1, lon1, entry_angle_deg(lat1, lon1, vx, vy, vz), radiant_azimuth_deg(lat1, lon1, vx, vy, vz)
 
 
 def local_solar_time_h(dates, lon_deg):
