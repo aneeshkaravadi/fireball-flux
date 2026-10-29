@@ -220,6 +220,33 @@ def strength_grid(lo: float = 1e3, hi: float = 1e9, per_decade: int = 10):
     return np.logspace(np.log10(lo), np.log10(hi), int(round(np.log10(hi / lo) * per_decade)) + 1)
 
 
+def burst_curve_rise(grid_burst_alt):
+    """How far each body's burst altitude climbs back up as strength increases (m, 0 if it never does).
+
+    Over most of the grid a stronger body breaks lower and bursts lower. But a body that only just
+    breaks up does so below the altitude where an unbroken body would peak, and the spreading swarm
+    then peaks right there; one grid step stronger it doesn't break at all and peaks higher, like an
+    unbroken body. So the curve has a dip at the strength where breakup stops.
+    """
+    z = np.asarray(grid_burst_alt, dtype=float)
+    return np.max(z - np.minimum.accumulate(z, axis=-1), axis=-1)
+
+
+def burst_curve_crossings(burst_alt_obs, grid_burst_alt, tol: float = 50.0):
+    """How many times each body's burst-altitude curve crosses its observed altitude (by more than tol).
+
+    One crossing means one strength fits. Two mean the observed altitude is also reached in the dip
+    described in `burst_curve_rise`, so the strength isn't unique.
+    """
+    obs = np.asarray(burst_alt_obs, dtype=float).ravel()
+    out = np.zeros(obs.size, int)
+    for j, row in enumerate(np.asarray(grid_burst_alt, dtype=float).reshape(obs.size, -1)):
+        d = row - obs[j]
+        sign = np.sign(d[np.abs(d) > tol])
+        out[j] = int(np.sum(sign[1:] != sign[:-1]))
+    return out
+
+
 def invert_strength(burst_alt_obs, diameter, density, speed, angle_deg, strengths=None, tol: float = 50.0, **kw):
     """Strength that makes the model's peak-power altitude equal the observed one, for each body.
 
@@ -227,11 +254,15 @@ def invert_strength(burst_alt_obs, diameter, density, speed, angle_deg, strength
 
     The burst altitude only depends on strength over a limited range. A weak body breaks up high,
     spreads to f_p times its size and then always peaks at about the same altitude, however weak it
-    is; a strong enough body never breaks up at all. Both ends are flat, so the inversion returns a
-    flag with each strength:
+    is; a strong enough body never breaks up at all. In between, the curve isn't quite monotonic: it
+    dips at the strength where breakup stops (see `burst_curve_rise`). The inversion uses the lower
+    envelope of the curve (its running minimum), which is non-increasing, so it picks the weakest
+    strength that fits; `burst_curve_crossings` finds the bodies where a second strength would fit too.
+    Each strength comes with a flag:
         0   resolved: the observed altitude is on the sloped part
         -1  upper limit: the observed burst is at or above the weak-body plateau, so strength <= value
-        +1  lower limit: the observed burst is at or below what an unbroken body does, so strength >= value
+        +1  no fit below: the observed burst is lower than the model's lowest burst altitude for this
+            body (reached by a body that only just breaks up); the value is the strength at that dip
     """
     strengths = strength_grid() if strengths is None else np.asarray(strengths, dtype=float)
     obs = np.asarray(burst_alt_obs, dtype=float).ravel()

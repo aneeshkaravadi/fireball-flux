@@ -70,7 +70,7 @@ def test_pancake_spread_matches_an_independent_ode_solve(fixed_speed_runs):
 
 def test_collins_closed_form_pancake_vs_exact_solution(fixed_speed_runs):
     """Collins's eq. 15-16 closed form is an approximation to eq. 14. Over these 27 cases it puts the
-    airburst between 2.3 km lower and 0.6 km higher than the exact solution. Documenting, not tuning."""
+    airburst between 2.3 km lower and 0.54 km higher than the exact solution. Documenting, not tuning."""
     r, exact = fixed_speed_runs
     L0, th, _ = CASES.T
     diffs = entry.collins_airburst_altitude(r.breakup_alt, L0, 3000.0, th) - exact
@@ -78,16 +78,38 @@ def test_collins_closed_form_pancake_vs_exact_solution(fixed_speed_runs):
     assert np.mean(diffs < 0) > 0.9
 
 
-def test_burst_altitude_decreases_as_strength_increases():
-    strengths = entry.strength_grid(1e3, 1e8, 10)
-    for L0, v, th in ((0.5, 15e3, 30.0), (3.0, 18e3, 45.0), (15.0, 25e3, 70.0)):
+def test_burst_altitude_falls_with_strength_while_breakup_is_high():
+    """Stronger bodies break lower, and as long as they break above the altitude where an unbroken body
+    would peak, they also burst lower (to within one 25 m step)."""
+    strengths = entry.strength_grid(1e3, 1e9, 10)
+    for L0, v, th in ((0.5, 15e3, 30.0), (3.0, 18e3, 45.0), (15.0, 25e3, 70.0), (1.643, 16.6e3, 49.7)):
         r = entry.simulate(L0, 3000.0, v, th, strengths)
         broke = np.isfinite(r.breakup_alt)
-        assert np.all(np.diff(r.breakup_alt[broke]) < 0)          # stronger bodies break lower
-        assert np.all(np.diff(r.burst_alt) <= 0)                   # and never burst higher
-        assert r.burst_alt[0] - r.burst_alt[-1] > 5e3
-        # small strong bodies slow down before the ram pressure gets high enough to break them
-        assert not broke[-1] or L0 > 1.0
+        assert not broke[-1]                                       # 1 GPa: never breaks
+        assert np.all(np.diff(r.breakup_alt[broke]) < 0)
+        high = broke & (r.breakup_alt > r.burst_alt[-1])           # breaks above the unbroken body's peak
+        assert np.all(np.diff(r.burst_alt[high]) <= 25.0)
+        assert r.burst_alt[0] - r.burst_alt[high][-1] > 5e3
+
+
+@pytest.mark.parametrize("L0,v,th", [(1.643, 16.6e3, 49.7), (3.1, 17.2e3, 48.0), (1.0, 15e3, 45.0)])
+def test_burst_altitude_dips_where_breakup_stops(L0, v, th):
+    """It is NOT monotonic everywhere, and I first claimed it was. A body that only just breaks up does
+    so below the altitude where an unbroken body would peak, and the spreading swarm then peaks right
+    there, lower than either neighbour. One step stronger it doesn't break and peaks higher again.
+    On a fine strength grid the dip is 1 to 3 km deep for these bodies."""
+    coarse = entry.strength_grid(1e3, 1e9, 10)
+    r = entry.simulate(L0, 3000.0, v, th, coarse)
+    k = np.flatnonzero(np.isfinite(r.breakup_alt)).max()            # strongest grid value that still breaks
+    fine = np.geomspace(coarse[k - 2], coarse[k + 2], 80)
+    rf = entry.simulate(L0, 3000.0, v, th, fine)
+    assert entry.burst_curve_rise(rf.burst_alt) > 1000.0
+    # an altitude inside the dip is matched by two strengths, and the crossing count says so
+    z_dip = 0.5 * (rf.burst_alt.min() + rf.burst_alt[-1])
+    assert entry.burst_curve_crossings([z_dip], rf.burst_alt[None, :])[0] == 2
+    # the inversion uses the lower envelope and returns the weaker of the two
+    s, flag, _ = entry.invert_strength([z_dip], L0, 3000.0, v, th, strengths=fine)
+    assert flag[0] == 0 and s[0] < fine[np.argmin(rf.burst_alt)]
 
 
 def test_step_size_is_converged():

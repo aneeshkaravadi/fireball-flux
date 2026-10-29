@@ -37,6 +37,12 @@ class Inversion:
     strengths: np.ndarray     # the grid used
     grid_burst_alt: np.ndarray  # m, model burst altitude for every body and every grid strength
     speed_matched: np.ndarray   # True where the model's burst speed is within 2% of the reported speed
+    crossings: np.ndarray       # times the burst-altitude curve crosses the observed altitude (2+: not unique)
+    rise: np.ndarray            # m, how far the burst-altitude curve climbs back up with strength
+
+    @property
+    def ambiguous(self) -> np.ndarray:
+        return self.crossings > 1
 
 
 def _interp_rows(x_grid, y_rows, x):
@@ -74,7 +80,9 @@ def implied_strength(alt_m, speed_obs, angle_deg, energy_J, density=3000.0, *, i
     s, flag, res = entry.invert_strength(z, L0, rho_i, v_entry, th, strengths, **kw)
     vb = _interp_rows(logs, res.burst_speed, np.log10(s))
     matched = np.abs(vb / v_obs - 1.0) < 0.02
-    return Inversion(s, flag, v_entry, L0, vb, strengths, res.burst_alt, matched)
+    tol = kw.get("tol", 50.0)
+    return Inversion(s, flag, v_entry, L0, vb, strengths, res.burst_alt, matched,
+                     entry.burst_curve_crossings(z, res.burst_alt, tol), entry.burst_curve_rise(res.burst_alt))
 
 
 def single_strength_fit(alt_m, grid_burst_alt, strengths):
