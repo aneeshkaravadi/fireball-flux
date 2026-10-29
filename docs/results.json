@@ -1,0 +1,404 @@
+{
+  "data": {
+    "snapshot": "cneos_fireballs_2026-10-29.csv",
+    "events": 1074,
+    "first": "1988-04-15 03:03:10",
+    "last": "2026-10-04 03:14:45",
+    "with_location": 888,
+    "with_altitude": 602,
+    "with_velocity": 363,
+    "with_altitude_and_velocity": 360
+  },
+  "completeness": {
+    "mean_per_year_1994_1999": 21.8,
+    "mean_per_year_2000_2025": 35.2,
+    "events_2000_2025": 914,
+    "dispersion_all": {
+      "index": 0.982,
+      "p": 0.487
+    },
+    "dispersion_above_emin": {
+      "index": 1.23,
+      "p": 0.198
+    },
+    "rate_above_emin_2000_2020": 16.1,
+    "rate_above_emin_2021_2025": 10.8,
+    "p_late_this_low_given_early_rate": 0.00103,
+    "ks_shape_early_vs_late_p": 0.243
+  },
+  "flux": {
+    "years": [
+      2000,
+      2025
+    ],
+    "emin_kt": 0.24,
+    "n_above_emin": 393,
+    "rate_above_emin": 15.1,
+    "b": 0.961,
+    "b_68": [
+      0.913,
+      1.01
+    ],
+    "b_95": [
+      0.871,
+      1.06
+    ],
+    "b_boot_sd": 0.0495,
+    "n1": 3.84,
+    "n1_68": [
+      3.52,
+      4.17
+    ],
+    "n1_95": [
+      3.19,
+      4.51
+    ],
+    "n1_boot_sd": 0.33,
+    "gof_p": 0.242,
+    "ks_distance": 0.037,
+    "direct_count_ge_1kt": 104,
+    "direct_rate_ge_1kt": 4.0,
+    "direct_rate_ge_1kt_sigma": 0.392,
+    "energy_once_per_year_kt": 4.05,
+    "energy_once_per_year_68": [
+      3.49,
+      4.73
+    ],
+    "years_between_440kt": 90.5,
+    "years_between_440kt_68": [
+      63.2,
+      132.0
+    ],
+    "years_between_10Mt": 1820.0,
+    "years_between_10Mt_68": [
+      1090.0,
+      3100.0
+    ],
+    "threshold_sensitivity": {
+      "0.1": {
+        "n": 752,
+        "b": 0.845,
+        "b_sigma": 0.0308,
+        "n1": 4.13
+      },
+      "0.2": {
+        "n": 464,
+        "b": 0.955,
+        "b_sigma": 0.0444,
+        "n1": 3.83
+      },
+      "0.3": {
+        "n": 329,
+        "b": 0.996,
+        "b_sigma": 0.0549,
+        "n1": 3.82
+      },
+      "0.5": {
+        "n": 189,
+        "b": 0.93,
+        "b_sigma": 0.0676,
+        "n1": 3.82
+      },
+      "1": {
+        "n": 104,
+        "b": 0.958,
+        "b_sigma": 0.0939,
+        "n1": 4.0
+      }
+    },
+    "after_brown_2003_2025": {
+      "n": 346,
+      "b": 0.964,
+      "b_68": [
+        0.914,
+        1.02
+      ],
+      "n1": 3.8,
+      "n1_68": [
+        3.43,
+        4.15
+      ]
+    },
+    "without_2021_2025": {
+      "n": 339,
+      "b": 0.981,
+      "b_68": [
+        0.93,
+        1.04
+      ],
+      "n1": 3.98,
+      "n1_68": [
+        3.59,
+        4.35
+      ]
+    },
+    "brown2002": {
+      "n1": 3.7,
+      "b": 0.9,
+      "energy_once_per_year_kt": 4.28,
+      "years_between_440kt": 64.7,
+      "years_between_10Mt": 1080.0
+    },
+    "b_minus_brown_in_sd": 1.23,
+    "n1_minus_brown_in_sd": 0.41,
+    "brown_b_percentile_in_bootstrap": 10.5
+  },
+  "energy_relation": {
+    "rows": 1074,
+    "rows_matching_after_rounding": 1073,
+    "max_abs_rel_diff_matching_rows": 0.0448,
+    "nonmatching": [
+      {
+        "date": "2013-02-20 13:13:07",
+        "radiated_J": 32000000000.0,
+        "impact_kt": 0.1,
+        "predicted_kt": 0.11
+      }
+    ],
+    "luminous_efficiency_range": [
+      0.0621,
+      0.203
+    ]
+  },
+  "airburst": {
+    "events_with_alt_and_speed": 360,
+    "velocity_points_upward": 5,
+    "grazing_under_5deg": 5,
+    "used": 350,
+    "alt_km_16_50_84": [
+      26.3,
+      33.3,
+      41.7
+    ],
+    "ram_pressure_at_peak_MPa_5_16_50_84_95": [
+      0.373,
+      1.02,
+      3.33,
+      10.4,
+      20.5
+    ],
+    "density_speed_slope": {
+      "ols": -1.31,
+      "ols_95": [
+        -2.14,
+        -0.418
+      ],
+      "r2": 0.0843,
+      "theil_sen": -0.748,
+      "theil_sen_95": [
+        -1.22,
+        -0.261
+      ]
+    },
+    "rms_altitude_spread_km": 9.46,
+    "ram_pressure_one_strength": {
+      "Q_MPa": 3.02,
+      "rms_km": 9.06,
+      "variance_explained": 0.0822
+    },
+    "pancake_one_strength": {
+      "Y_MPa": 3.16,
+      "rms_km": 10.0,
+      "variance_explained": -0.126
+    },
+    "inversion": {
+      "bulk_density": 3000.0,
+      "pancake_factor": 7.0,
+      "resolved": 308,
+      "upper_limits": 34,
+      "lower_limits": 8,
+      "speed_not_matched": 18,
+      "resolved_and_matched": 303,
+      "strength_MPa_5_16_50_84_95": [
+        0.5,
+        1.06,
+        3.52,
+        11.2,
+        22.8
+      ],
+      "strength_over_ram_pressure_median": 1.0,
+      "entry_over_reported_speed_5_50_95": [
+        1.07,
+        1.17,
+        1.46
+      ],
+      "diameter_m_5_50_95": [
+        0.79,
+        1.46,
+        3.79
+      ],
+      "spearman_strength_speed": {
+        "rho": 0.245,
+        "p": 1.57e-05
+      },
+      "spearman_strength_energy": {
+        "rho": 0.106,
+        "p": 0.0648
+      },
+      "variants": {
+        "density_1500": {
+          "n_resolved": 298,
+          "median_MPa": 3.55,
+          "p16_p84_MPa": [
+            1.02,
+            10.5
+          ]
+        },
+        "density_3300": {
+          "n_resolved": 303,
+          "median_MPa": 3.54,
+          "p16_p84_MPa": [
+            1.11,
+            11.7
+          ]
+        },
+        "pancake_factor_4": {
+          "n_resolved": 230,
+          "median_MPa": 4.48,
+          "p16_p84_MPa": [
+            1.96,
+            11.7
+          ]
+        },
+        "speed_as_entry_speed": {
+          "n_resolved": 308,
+          "median_MPa": 2.6,
+          "p16_p84_MPa": [
+            0.839,
+            7.0
+          ]
+        }
+      }
+    },
+    "spearman_altitude_energy": {
+      "rho": -0.0784,
+      "p": 0.143
+    }
+  },
+  "chelyabinsk": {
+    "cneos": {
+      "date": "2013-02-15 03:20:26",
+      "alt_km": 23.3,
+      "speed_km_s": 18.6,
+      "impact_kt": 441.0,
+      "radiated_J": 375000000000000.0,
+      "entry_angle_deg": 15.9,
+      "radiant_azimuth_deg": 99.9,
+      "ram_pressure_at_peak_MPa": 18.2,
+      "implied_strength_MPa": 16.3,
+      "flag": 0,
+      "model_entry_speed_km_s": 24.7,
+      "model_diameter_m": 15.2,
+      "breakup_alt_km": 27.3
+    },
+    "popova2013_inputs": {
+      "diameter_from_energy_m": 19.8,
+      "ram_pressure_at_peak_MPa": 6.67,
+      "implied_strength_MPa": 0.173,
+      "flag": 0,
+      "model_speed_at_burst_km_s": 15.6,
+      "breakup_alt_km": 56.6,
+      "with_0.2MPa": {
+        "breakup_alt_km": 55.3,
+        "burst_alt_km": 29.6,
+        "pancake_alt_km": 29.6
+      }
+    },
+    "popova2013": {
+      "v0": 19200.0,
+      "angle": 18.3,
+      "energy_kt": 590.0,
+      "z_peak": 29700.0,
+      "v_peak_satellite": 18600.0,
+      "y_onset": 200000.0,
+      "diameter": 19.8
+    },
+    "strength_MPa_swapping_inputs": {
+      "popova_inputs": 0.173,
+      "cneos_altitude": 6.29,
+      "cneos_altitude_angle": 7.62,
+      "cneos_altitude_angle_energy": 8.48,
+      "cneos_all_speed_matched": 16.3
+    },
+    "popova_altitude_speed_matched": {
+      "strength_MPa": 0.843,
+      "entry_speed_needed_km_s": 22.5
+    },
+    "altitude_difference_km": 6.4
+  },
+  "population": {
+    "speed_km_s": {
+      "n": 363,
+      "mean": 18.9,
+      "p5_16_50_84_95": [
+        11.8,
+        13.4,
+        17.4,
+        23.4,
+        31.2
+      ],
+      "max": 71.1
+    },
+    "model_entry_speed_mean_km_s": 22.9,
+    "brown2002_assumed_mean_speed_km_s": 20.3,
+    "vel_field_disagrees": 9,
+    "vel_field_disagrees_dates": [
+      "2009-10-08 02:57:14",
+      "2010-12-25 23:24:13",
+      "2014-05-16 20:06:26",
+      "2014-06-28 02:40:05",
+      "2014-08-23 06:29:41",
+      "2018-12-18 23:48:18",
+      "2023-06-21 19:39:12",
+      "2026-08-14 07:48:36",
+      "2026-10-04 03:14:45"
+    ],
+    "entry_angle": {
+      "n": 358,
+      "median": 43.4,
+      "ks_vs_isotropic_p": 0.228,
+      "frac_below_30": 0.26,
+      "isotropic_frac_below_30": 0.25
+    },
+    "velocity_reported_events_more_energetic": {
+      "median_with_kt": 0.23,
+      "median_without_kt": 0.16,
+      "p": 4.92e-09,
+      "years": [
+        2008,
+        2025
+      ]
+    },
+    "location": {
+      "n": 888,
+      "north_fraction": 0.493,
+      "fraction_within_30deg_of_equator": 0.503,
+      "ks_lat_uniform_sphere_p": 0.228,
+      "ks_lon_uniform_p": 0.95
+    },
+    "local_time": {
+      "bins_3h_all": [
+        130,
+        80,
+        94,
+        125,
+        120,
+        85,
+        109,
+        145
+      ],
+      "chi2_p_all": 2.09e-05,
+      "bins_3h_above_emin": [
+        51,
+        39,
+        38,
+        65,
+        57,
+        47,
+        45,
+        60
+      ],
+      "chi2_p_above_emin": 0.0629
+    }
+  }
+}
